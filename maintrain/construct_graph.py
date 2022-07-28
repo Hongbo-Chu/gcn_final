@@ -65,6 +65,11 @@ def L2_dist(x, y):
     dist.addmm_(x, y.t(), beta=1, alpha=-2)
     # clamp()函数可以限定dist内元素的最大最小范围，dist最后开方，得到样本之间的距离矩阵
     dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
+    #归一化一下
+    dist_min =dist.min()
+    dist = dist - dist_min
+    dist_max = dist.max()
+    dist = dist / dist_max
     return dist
 
 

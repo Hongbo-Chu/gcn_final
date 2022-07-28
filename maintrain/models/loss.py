@@ -35,6 +35,7 @@ class myloss(torch.nn.Module):
                 L2_dist[i] = L2_dist[i] - L2_dis_min
                 L2_dist_max = L2_dist[i].max()
                 L2_dist[i] = L2_dist[i] / L2_dist_max
+                L2_dist[i] = L2_dist[i].mean()
                 final_loss = final_loss + L2_dist[i]
         return final_loss
 
@@ -77,9 +78,9 @@ class myloss(torch.nn.Module):
                 final_i = []
                 final_j = []
                 sorted_cos_i = sorted(cos_i)
-                th_i = sorted_cos_i[int(len(sorted_cos_i) * 0.1)]
+                th_i = sorted_cos_i[int(len(sorted_cos_i) * 0.05)]
                 sorted_cos_j = sorted(cos_j)
-                th_j = sorted_cos_j[int(len(sorted_cos_j) * 0.1)]
+                th_j = sorted_cos_j[int(len(sorted_cos_j) * 0.05)]
                 for k, cosval in enumerate(cos_i):
                     if cosval > th_i:
                         final_i.append(edgenode_fea_i[k].unsqueeze(0))
@@ -91,7 +92,7 @@ class myloss(torch.nn.Module):
                     final_j = torch.cat(final_j, dim=0).mean(dim=0)
                     L2_dist += F.pairwise_distance(final_i.unsqueeze(0), final_j.unsqueeze(0), p=2)
         
-        return -L2_dist
+        return 1 / L2_dist
                 
 
     def forward(self, node_fea, clu_label, center_fea, mask_nodes, mask_weight, sort_idx_rst):
