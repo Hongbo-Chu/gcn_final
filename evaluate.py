@@ -141,7 +141,7 @@ def evaluate_wsi(backbone:torch.nn.Module, gcn: torch.nn.Module,
 
 
         node_fea_detach = node_fea.clone().detach()
-        g, u_v_pair, edge_fea = new_graph(wsi_dict, 9, graph_mlp, fold_dic, node_fea_detach, "cuda:1").init_graph()
+        g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, 1, "cuda:1").init_graph()
         clu_label = Cluster(node_fea=node_fea_detach, cluster_num = 9, device='cuda:1').predict()
         #向字典中添加聚类标签#TODO
         for i in range(len(wsi_dict)):

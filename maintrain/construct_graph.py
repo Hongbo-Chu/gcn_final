@@ -103,7 +103,7 @@ def L2_dist(x, y):
 
 
 class new_graph:
-    def __init__(self, wsi, clusterr_num, graph_mlp, fold_dict, node_fea, device) -> None:
+    def __init__(self, wsi, fold_dict, node_fea, edge_enhance, device) -> None:
         """根据node_fea和读取的文件名建图
          Args:
             wsi (_type_): 格式：{idx: name, (x_t, y_t), (x, y)}
@@ -111,56 +111,17 @@ class new_graph:
             graph_mlp:用于边的特征映射的mlp
         """
         self.device = device
-        self.edge_mlp = graph_mlp
         self.wsi_dic = wsi
-        self.d = [] #javed 公式中的d
-        for idx in range(len(wsi)):
-            self.d.append(torch.tensor(list(wsi[idx][1])).float().unsqueeze(0))
         self.fold_dict = fold_dict.fold_dict
-        # for k in self.fold_dict.keys():
-        #     self.d
-        self.d = torch.cat(self.d, dim = 0).to(self.device)
         self.node_fea = node_fea
         self.node_num = len(self.node_fea)
 #         self.d = self.d.to(self.device)
         self.node_fea = self.node_fea.to(self.device)
-        
-    def init_edge(self):
-        """初始化边，v2.0根据点之间的   
-        """
-        e_ij = []
-        #仿照javed公式写(r,c,h,w)分别代表了 左上角的坐标和图像的高和宽
-        h = w = 128
-        print(f"超了{self.node_fea.size()}")
-        f_ij = L2_dist(self.node_fea, self.node_fea)#公式中||f_i - f_j||_2
-        d_ij = L2_dist(self.d, self.d)#公式中d_ij
-        #公式中p_ij
-        px =  self.d.permute(1, 0)[0] # 所有x坐标
-        px1 = px.expand(px.size(0), px.size(0))
-        px2 = px1.permute(1, 0)
-        py = self.d.permute(1, 0 )[1] # 所有的y坐标
-        py1 = py.expand(py.size(0), py.size(0))
-        py2 = py1.permute(1, 0) # 
-        p_ij1 = ((px1 - px2) / h)
-        p_ij2 = ((py1 - py2) / h)
-        #这里需要每个分量都是N * N
-        self.node_num = len(self.node_fea)
-        z = torch.zeros_like(f_ij).to(self.device)
-        print(f"各种大小{f_ij.size()} {p_ij1.size()} {p_ij2.size()} {d_ij.size()} {z.size()}")
-        edge_fea = torch.stack([f_ij, p_ij1, p_ij2, z, z, d_ij])
-        edge_fea = edge_fea.permute(2, 1, 0) # 大小是3,3,3 其中edge_fea[i][j]就代表了那个点的特征
-
-        #此时edge_fea 为 [n, n, edge_fea_dim]
-        for i in tqdm(range(self.node_num)): #全连接图
-            for j in range(self.node_num):
-                e_ij.append(edge_fea[i][j])
-        e_ij = torch.stack(e_ij)
-        return e_ij
-        
+        self.edge_enhance = edge_enhance
             
     def init_graph(self):
-        e_fea = self.init_edge() #size=[n^2, dim]
-        e_fea = self.edge_mlp(e_fea).view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
+        e_fea = L2_dist(self.node_fea, self.node_fea)
+        # e_fea = self.edge_mlp(e_fea).view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
         #将所有不到阈值的edge_fea归零
 #         print(e_fea)
         threshold = int(e_fea.mean())
@@ -168,15 +129,21 @@ class new_graph:
         print(threshold_e.size()) 
         #然后判断需要增强的邻居节点
         edge_enhance = []
-        for node in range(self.node_num):
+        for node in range(len(self.wsi_dic)):
             temp = torch.zeros(1, self.node_num)
             neighbor_edge = neighbor_idx(node, self.wsi_dic, 1)
-            temp[0][neighbor_edge] = 1
+            #折叠的点不加强
+            neighbor_edge.extend([0 for _ in range(len(list(self.fold_dict.keys())))])
+            temp[0][neighbor_edge] = self.edge_enhance
             edge_enhance.append(temp)
+        #TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!被折叠的边要不要增强
+        for ii in range(len(list(self.fold_dict.keys()))):
+            edge_enhance.append(torch.zeros(1, self.node_num))
         #一个n x n的tensor其中，只有对应位置的值为1
         edge_enhance = torch.cat(edge_enhance, dim=0).to(self.device)
         # print(f"用于边增强的矩阵的形状{edge_enhance.size()}")
         #现在的边值是根据周围一圈邻居的值和原edge_fea生成的
+        print(f"是是是{threshold_e.size()} {edge_enhance.size()}")
         threshold_e = (edge_enhance + threshold_e)
         u = []
         v = []

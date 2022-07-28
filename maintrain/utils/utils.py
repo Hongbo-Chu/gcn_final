@@ -306,7 +306,7 @@ def compute_pys_feature(wsi, n):
     for j in range(len(wsi)):
         pos = wsi[j][2]
         _, num_type = neighber_type(pos, n, pos_dict)
-        if num_type <= 2:
+        if num_type <= 10:
             center_nodes.append(j)
         else:
             edge_nodes.append(j)

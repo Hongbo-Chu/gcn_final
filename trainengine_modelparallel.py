@@ -152,7 +152,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
             node_fea = torch.cat([node_fea, node_fea_k.unsqueeze(0)], dim = 0)
 
         node_fea_detach = node_fea.clone().detach()#从计算图中剥离
-        g, u_v_pair, edge_fea = new_graph(wsi_dict, 9, graph_mlp, fold_dic, node_fea_detach, "cuda:1").init_graph()
+        g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, 1, "cuda:1").init_graph()
         
         
         
