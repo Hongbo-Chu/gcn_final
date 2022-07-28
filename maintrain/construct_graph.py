@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 from collections import Counter
+import torch.nn.functional as F
 import dgl
 from maintrain.utils.utils import Cluster, neighber_type
 """
@@ -43,6 +44,7 @@ def neighbor_idx(node_idx, wsi, n):
             if (i, j) in pos_dict:
                 neighbor_idx.append(pos_dict[(i, j)])
     return neighbor_idx
+
 def L2_dist(x, y):
     """
     a fast approach to compute X, Y euclidean distace.
@@ -64,6 +66,8 @@ def L2_dist(x, y):
     # clamp()函数可以限定dist内元素的最大最小范围，dist最后开方，得到样本之间的距离矩阵
     dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
     return dist
+
+
 
 # def prepoess_file_list(wsi, cluster_num, device):
 #     """根据输入的文件名列表构件数据字典,并为每一个文件创建一个唯一idx
@@ -122,11 +126,12 @@ class new_graph:
         self.node_fea = self.node_fea.to(self.device)
         
     def init_edge(self):
-        """初始化边，参考javed
+        """初始化边，v2.0根据点之间的   
         """
         e_ij = []
         #仿照javed公式写(r,c,h,w)分别代表了 左上角的坐标和图像的高和宽
         h = w = 128
+        print(f"超了{self.node_fea.size()}")
         f_ij = L2_dist(self.node_fea, self.node_fea)#公式中||f_i - f_j||_2
         d_ij = L2_dist(self.d, self.d)#公式中d_ij
         #公式中p_ij
@@ -141,7 +146,7 @@ class new_graph:
         #这里需要每个分量都是N * N
         self.node_num = len(self.node_fea)
         z = torch.zeros_like(f_ij).to(self.device)
-        # print(f"各种大小{f_ij.size()} {p_ij1.size()} {p_ij2.size()} {d_ij.size()} {z.size()}")
+        print(f"各种大小{f_ij.size()} {p_ij1.size()} {p_ij2.size()} {d_ij.size()} {z.size()}")
         edge_fea = torch.stack([f_ij, p_ij1, p_ij2, z, z, d_ij])
         edge_fea = edge_fea.permute(2, 1, 0) # 大小是3,3,3 其中edge_fea[i][j]就代表了那个点的特征
 
@@ -160,7 +165,7 @@ class new_graph:
 #         print(e_fea)
         threshold = int(e_fea.mean())
         threshold_e = torch.threshold(e_fea, threshold, 0)#size() = n,n
-        print(threshold_e.size())
+        print(threshold_e.size()) 
         #然后判断需要增强的邻居节点
         edge_enhance = []
         for node in range(self.node_num):

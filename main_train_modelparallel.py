@@ -24,7 +24,7 @@ def get_args_parser():
     # 
     parser.add_argument('--device', type=str, default="cuda:0",
                         help='which gpu to use if any (default: 0)')
-    parser.add_argument('--batch_size', type=int, default=1300,
+    parser.add_argument('--batch_size', type=int, default=300,
                         help='input batch size for training (default: 32)')
     parser.add_argument('--local_rank', default=-1, type=int,
                         help='node rank for distributed training')
