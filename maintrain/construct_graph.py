@@ -143,7 +143,6 @@ class new_graph:
         edge_enhance = torch.cat(edge_enhance, dim=0).to(self.device)
         # print(f"用于边增强的矩阵的形状{edge_enhance.size()}")
         #现在的边值是根据周围一圈邻居的值和原edge_fea生成的
-        print(f"是是是{threshold_e.size()} {edge_enhance.size()}")
         threshold_e = (edge_enhance + threshold_e)
         u = []
         v = []

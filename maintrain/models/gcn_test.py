@@ -40,8 +40,9 @@ def L2_dist(x, y):
     # print(f"球球了{x.size()}")
     dis = F.pairwise_distance(x, y, p=2)
     dis_min = dis.min()
+    dis = dis - dis_min
     dis_max = dis.max()
-    dis = (dis-dis_min) / dis_max
+    dis = dis / dis_max
     return dis
 
 

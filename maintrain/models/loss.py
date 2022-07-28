@@ -32,9 +32,9 @@ class myloss(torch.nn.Module):
         for i in range(len(L2_dist)):
             if len(L2_dist[i]) != 0:
                 L2_dis_min = L2_dist[i].min()   
-                L2_dis_max = L2_dist[i].max()
-                L2_dist[i] = (L2_dist[i] - L2_dis_min) / L2_dis_max
-                L2_dist[i] = L2_dist[i].mean()
+                L2_dist[i] = L2_dist[i] - L2_dis_min
+                L2_dist_max = L2_dist[i].max()
+                L2_dist[i] = L2_dist[i] / L2_dist_max
                 final_loss = final_loss + L2_dist[i]
         return final_loss
 
@@ -53,7 +53,6 @@ class myloss(torch.nn.Module):
         final_loss = 0
         #遍历所有cluster，两两算
         L2_dist = 0
-        # print(f"服了{len(center_fea)}")
         for i in range(len(center_fea)):
             for j in range(i+1, len(center_fea)):
                 #先找出两个球之间的连线的那个向量
