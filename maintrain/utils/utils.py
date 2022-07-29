@@ -99,7 +99,7 @@ def samesort(list1, list2):
     return zip(*sorted(zip(list1, list2))) 
     
 
-def split2clusters(node_fea, cluster_num, device, cluster_method = "K-means"):
+def split2clusters(node_fea, cluster_num, cluster_res, device, cluster_method = "K-means"):
     """
     split nodes into different clusters
     将node_fea按照聚类的结果进行分类，
@@ -111,16 +111,17 @@ def split2clusters(node_fea, cluster_num, device, cluster_method = "K-means"):
         node_fea_list：按照聚类的种类分的列表[[tensor(1,node_fea)， tensor(1,node_fea)....],[],[]....],
         node_idx_list:按照聚类种类存储的每一类中的node_indx（具有唯一标识性），[[int, int,int,......],[],[]...]
     """
+    
     node_fea_list = [[] for _ in range(cluster_num)] # 用于存放每一类cluster的node_fea(tensor)
     node_idx_list = [[] for _ in range(cluster_num)] # 用于存放每一类cluster的标签(int)
-    cluster_res = Cluster(node_fea=node_fea, cluster_num=cluster_num, method=cluster_method, device=device).predict()
+    # cluster_res = Cluster(node_fea=node_fea, cluster_num=cluster_num, method=cluster_method, device=device).predict()
     #按照聚类标签分类
     for idx, clu in enumerate(cluster_res):
         node_fea_list[clu].append(node_fea[idx].unsqueeze(0))
         node_idx_list[clu].append(idx)
     return node_fea_list, node_idx_list
 
-def chooseNodeMask(node_fea, cluster_num, mask_rate:list, wsi, device, stable_dic, cluster_method = "K-means"):
+def chooseNodeMask(node_fea, cluster_num, mask_rate:list, wsi, device, stable_dic, cluster_res, cluster_method = "K-means"):
     """
     choose which nodes to mask of a certain cluster
     args:
@@ -139,7 +140,7 @@ def chooseNodeMask(node_fea, cluster_num, mask_rate:list, wsi, device, stable_di
     mask_node_idx = [] # 用于存储最终mask点的idx
     high = [] # 用于存储高相似度
     low = [] #用于存储低相似度
-    node_fea_list, node_idx_list = split2clusters(node_fea, cluster_num, device, cluster_method)
+    node_fea_list, node_idx_list = split2clusters(node_fea, cluster_num, cluster_res, device, cluster_method)
     sort_idx_rst = [[] for i in range(cluster_num)]#用于存放每一类按照相似度从大到小的排序结果，后面edgemask的时候要用。
     cluster_center_list = []
     #取mask前先要判断是否重合

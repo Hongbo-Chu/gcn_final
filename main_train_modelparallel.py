@@ -1,3 +1,4 @@
+from typing import Counter
 import torch
 import argparse
 import dgl
@@ -24,7 +25,7 @@ def get_args_parser():
     # 
     parser.add_argument('--device', type=str, default="cuda:0",
                         help='which gpu to use if any (default: 0)')
-    parser.add_argument('--batch_size', type=int, default=1300,
+    parser.add_argument('--batch_size', type=int, default=1400,
                         help='input batch size for training (default: 32)')
     parser.add_argument('--local_rank', default=-1, type=int,
                         help='node rank for distributed training')
@@ -59,7 +60,7 @@ def get_args_parser():
                 help='一个wsi加几轮mask')
     parser.add_argument('--embeding_dim', type=int, default=768,
                 help='一个wsi加几轮mask')
-    parser.add_argument('--epoch_per_wsi', type=int, default=6,
+    parser.add_argument('--epoch_per_wsi', type=int, default=10,
                 help='一个wsi整体训练几轮')
     parser.add_argument('--log_folder', type=str, default='/root/autodl-tmp/7.26备份/runs/logs',
             help='日志存储文件夹')
@@ -148,16 +149,22 @@ def run():
     #             save_path = os.path.join(args.weight_folder, 'epoch'+ str(epoch) + 'wsi' + str(tw) + '.pt')
     #             torch.save(state, save_path)
     for epoch in range(200):
-        img_load_path = os.path.join(saving_path, ('43'+ '.pt'))
-        dict_load_path = os.path.join(saving_path, ('43' + '.npy'))
+        img_load_path = os.path.join(saving_path, ('46'+ '.pt'))
+        dict_load_path = os.path.join(saving_path, ('46' + '.npy'))
         wsi_img = torch.load(img_load_path)
         wsi_dict =  dict(np.load(dict_load_path, allow_pickle='TRUE').item())
         dict_crop, img_crop, total = crop_wsi(wsi_dict, wsi_img, args.batch_size, 0.5)
         for idx, (wdict, wimg) in enumerate(zip(dict_crop, img_crop)):
-            train_one_wsi(backboneModel, graph_model, criterion, wimg, wdict, idx, total, epoch, args)
-            evaluate_wsi(backboneModel, graph_model, wimg, wdict,epoch, idx,  total, args)
-            state = {'backbone': backboneModel.state_dict(), 'gcn': graph_model.state_dict()}
-            save_path = os.path.join(args.weight_folder, 'epoch'+ str(epoch) + 'wsi' + str(43) + 'minipatch' + str(idx) + '.pt')
-            torch.save(state, save_path)
+            print(f"统计一下真实标签数量")
+            la = []
+            for i in range(len(wdict)):
+                la.append(wsi_dict[i][3])
+            print(Counter(la))
+            clus_num = len(Counter(la))
+            train_one_wsi(backboneModel, graph_model, criterion, wimg, wdict, idx, total, epoch, clus_num, args)
+            # evaluate_wsi(backboneModel, graph_model, wimg, wdict,epoch, idx,  total, clus_num, args)
+            # state = {'backbone': backboneModel.state_dict(), 'gcn': graph_model.state_dict()}
+            # save_path = os.path.join(args.weight_folder, 'epoch'+ str(epoch) + 'wsi' + str(43) + 'minipatch' + str(idx) + '.pt')
+            # torch.save(state, save_path)
 if __name__ == "__main__":
     run()

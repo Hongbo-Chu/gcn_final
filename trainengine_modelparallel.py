@@ -22,6 +22,7 @@ from maintrain.models.loss import myloss as ml
 from maintrain.models.gcn import graph_mlp as g_mlp
 # from train_engine_mp2 import train_one_wsi
 from reduce_backbone import build_model
+from evaluate import compute_acc, save_log_eval
 
 
 def save_log(save_folder, wsi_name, mini_patch, total, epoch, mask_nodes, fold_dict, labels, time, center_fea, edge_fea, center_pos, edge_pos, loss, big_epoch, acc=None, train=True):
@@ -120,6 +121,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
                     mini_patch,
                     total,
                     big_epoch,
+                    clus_num,
                     args=None):
             
    
@@ -155,11 +157,11 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         
         
         
-        clu_label = Cluster(node_fea=node_fea_detach, cluster_num = 9, device='cuda:1').predict()
+        clu_label = Cluster(node_fea=node_fea_detach, cluster_num = clus_num, device='cuda:1').predict()
         for i in range(len(wsi_dict)):
             wsi_dict[i].append(clu_label[i])
         mask_rates = [args.mask_rate_high, args.mask_rate_mid, args.mask_rate_low]#各个被mask的比例
-        mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, args.cluster_num, mask_rates, wsi_dict, "cuda:1", stable_dic)#TODO 检查数量
+        mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, clus_num, mask_rates, wsi_dict, "cuda:1", stable_dic, clu_label)#TODO 检查数量
         mask_edge_idx = chooseEdgeMask(u_v_pair, clu_label,sort_idx_rst, {"inter":0.1, "inner":0.1, "random":0.1} )#类内半径多一点
         node_fea[mask_idx] = 0
         edge_fea[mask_edge_idx] = 0
@@ -178,10 +180,19 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         optimizer.zero_grad()
         pys_center, pys_edge = compute_pys_feature(wsi_dict, args.pos_choose) #计算物理特征
         # fea2pos(fea_center, fea_edge, pys_center, pys_edge)#统计对齐信息并打印
-        clu_labe_new = Cluster(node_fea=predict_nodes, cluster_num = 9, device='cuda:1').predict()
+        clu_labe_new = Cluster(node_fea=predict_nodes, cluster_num = clus_num, device='cuda:1').predict()
         for i in range(len(wsi_dict)):
             wsi_dict[i].pop(-1)
         train_time = int(time() - start)
         save_log(args.log_folder, wsi_name, mini_patch, total, epoch, mask_idx, fold_dic, clu_labe_new, train_time, fea_center, fea_edge, pys_center, pys_edge, loss, big_epoch, acc=None, train=True)
+    true_label = []
+    print("start eval")
+    eval_start = time()
+    for i in range(len(wsi_dict)):
+        true_label.append(int(wsi_dict[i][3]))
+    acc = compute_acc(true_label, clu_labe_new, fold_dic, args)
+    print(f"acc={acc}")
+    eval_time = time() - eval_start
+    save_log_eval(args.save_folder_test, big_epoch, wsi_name, acc, mini_patch, eval_time, epoch, total)
         # save_log(args.log_folder, wsi_name, epoch, clu_label, mask_idx)
         #将这旧的聚类标签删除

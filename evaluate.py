@@ -1,4 +1,5 @@
 # from matplotlib.font_manager import _Weight
+from cProfile import label
 from collections import Counter
 import torch
 import numpy as np
@@ -49,11 +50,103 @@ def save_log_eval(save_folder, big_epoch, wsi_name, acc, mini_patch, time, epoch
 
 
 
-def evaluate(label, pred):
+# def evaluate(label, pred):
+#     print(f"我又来了{len(pred)} {len(label)}")
+#     print(f"预测标签的种类{len(Counter(pred))}")
+#     pred = pred.cpu().numpy()
+#     nmi = metrics.normalized_mutual_info_score(label, pred)
+#     ari = metrics.adjusted_rand_score(label, pred)
+#     f = metrics.fowlkes_mallows_score(label, pred)
+
+#     pred_adjusted = get_y_preds(label, pred, len(set(label)))
+#     # print(f"pre_label:{pred_adjusted[0:10]}")
+#     # print(f"TRUE_LABEL:{label[0:10]}")
+#     # print(f"my_predict acc={(pred_adjusted == label).sum() / label.shape[0]}")
+#     acc = metrics.accuracy_score(pred_adjusted, label)
+#     f1 = f1_score(label, pred, average = 'weighted')
+#     return nmi, ari, f, acc, f1
+
+
+# def calculate_cost_matrix(C, n_clusters):
+#     cost_matrix = np.zeros((n_clusters, n_clusters))
+#     # cost_matrix[i,j] will be the cost of assigning cluster i to label j
+#     for j in range(n_clusters):
+#         s = np.sum(C[:, j])  # number of examples in cluster i
+#         for i in range(n_clusters):
+#             t = C[i, j]
+#             cost_matrix[j, i] = s - t
+#     return cost_matrix
+
+
+# def get_cluster_labels_from_indices(indices):
+#     n_clusters = len(indices)
+#     cluster_labels = np.zeros(n_clusters)
+#     for i in range(n_clusters):
+#         cluster_labels[i] = indices[i][1]
+#     return cluster_labels
+
+
+# def get_y_preds(y_true, cluster_assignments, n_clusters):
+#     """
+#     Computes the predicted labels, where label assignments now
+#     correspond to the actual labels in y_true (as estimated by Munkres)
+#     cluster_assignments:    array of labels, outputted by kmeans
+#     y_true:                 true labels
+#     n_clusters:             number of clusters in the dataset
+#     returns:    a tuple containing the accuracy and confusion matrix,
+#                 in that order
+#     """
+#     print(cluster_assignments)
+#     confusion_matrix = metrics.confusion_matrix(y_true, cluster_assignments, labels=None)
+#     # compute accuracy based on optimal 1:1 assignment of clusters to labels
+#     print(f"混淆举证的大小{confusion_matrix}")
+#     cost_matrix = calculate_cost_matrix(confusion_matrix, n_clusters)
+#     print(f"costmatric{cost_matrix}")
+#     indices = Munkres().compute(cost_matrix)
+#     print(f"shishi{indices}")
+#     kmeans_to_true_cluster_labels = get_cluster_labels_from_indices(indices)
+#     # if np.min(cluster_assignments) != 0:
+#     #     cluster_assignments = cluster_assignments - np.min(cluster_assignments)
+#     print(f"woshisahbi{kmeans_to_true_cluster_labels}")
+#     print(f"凑凑{len(Counter(cluster_assignments))}")
+#     print(cluster_assignments)
+#     # clu_ass = []
+#     # for i in cluster_assignments:
+#     #     clu_ass.append(i)
+#     print(f"试试{kmeans_to_true_cluster_labels}")
+#     y_pred = kmeans_to_true_cluster_labels[cluster_assignments]
+#     return y_pred
+
+
+"""
+由于每个小patch中的坐标不是连续的，也不是从零开始的，所以需要重新映射
+"""
+
+
+def label_mapping(true_label):
+    """
+    将任意的label映射到丛零开始，连续的
+    """
+    num_label = len(set(true_label))
+    #create mapping
+    lables_true = sorted(set(true_label))
+    label_map = {}
+    for i in range(num_label):
+        label_map[lables_true[i]] = i
+    #替换
+    res = []
+    for i in true_label:
+        res.append(label_map[i])
+    return res, label_map
+
+
+def evaluate(label_, pred):
+
+    # pred = pred.cpu().numpy()
+    label, _ = label_mapping(label_)
     nmi = metrics.normalized_mutual_info_score(label, pred)
     ari = metrics.adjusted_rand_score(label, pred)
     f = metrics.fowlkes_mallows_score(label, pred)
-    print(f"我又来了{len(pred)} {len(label)}")
     pred_adjusted = get_y_preds(label, pred, len(set(label)))
     # print(f"pre_label:{pred_adjusted[0:10]}")
     # print(f"TRUE_LABEL:{label[0:10]}")
@@ -92,16 +185,44 @@ def get_y_preds(y_true, cluster_assignments, n_clusters):
     returns:    a tuple containing the accuracy and confusion matrix,
                 in that order
     """
+    # print(cluster_assignments)
+    # print(f"counter{Counter(y_true)}")
     confusion_matrix = metrics.confusion_matrix(y_true, cluster_assignments, labels=None)
     # compute accuracy based on optimal 1:1 assignment of clusters to labels
-    print(f"混淆举证的大小{confusion_matrix.shape}")
     cost_matrix = calculate_cost_matrix(confusion_matrix, n_clusters)
+    # print(f"代价矩阵{cost_matrix}")
     indices = Munkres().compute(cost_matrix)
+    # print(f"对照{indices}")
     kmeans_to_true_cluster_labels = get_cluster_labels_from_indices(indices)
     if np.min(cluster_assignments) != 0:
         cluster_assignments = cluster_assignments - np.min(cluster_assignments)
+
+    # print(f"试试{kmeans_to_true_cluster_labels}")
     y_pred = kmeans_to_true_cluster_labels[cluster_assignments]
     return y_pred
+
+
+
+
+def compute_acc(true_label, pre_label, fold_dic, args):
+    # 解折叠
+    print("start eval")
+    pre_label_list = []   
+    # print(f"真实标签{Counter(true_label)}")
+    for i in pre_label:
+        pre_label_list.append(i.item())
+    # print(f"前面{Counter(pre_label_list)}")
+    while(len(pre_label_list) != len(true_label)):
+        #倒着来
+        fold_idx = len(pre_label_list) - 1
+        fold_nodes = fold_dic.fold_dict[fold_idx]
+        fold_label = pre_label_list[fold_idx]
+        for i in fold_nodes:
+            pre_label_list[i] = fold_label
+        pre_label_list.pop(-1)
+    nmi, ari, f, acc, f1_score = evaluate(true_label, pre_label_list)
+    return acc
+    # save_log_eval(args.save_folder_test, big_epoch, wsi_name, acc, mini_patch, time, epoch, total)
 
 
 
@@ -112,6 +233,7 @@ def evaluate_wsi(backbone:torch.nn.Module, gcn: torch.nn.Module,
             big_epoch,
             mini_patch,
             total,
+            clus_num,
             args
         ):
     backbone.eval()
@@ -120,17 +242,17 @@ def evaluate_wsi(backbone:torch.nn.Module, gcn: torch.nn.Module,
     fold_dic = fd(args.batch_size)#用于记录被折叠的点
     stable_dic = sd()#用于记录稳定的点
     wsi_name = wsi_dict[0][0].split("_")[0]
-    for epoch in range(args.epoch_per_wsi):
-        start = time()
-        # print(f"wsi:[{wsi_name}], epoch:[{epoch}]:")
-        input_image = wsi_img.to('cuda:0')
+    start = time()
+    # print(f"wsi:[{wsi_name}], epoch:[{epoch}]:")
+    input_image = wsi_img.to('cuda:0')
 
 
 
-        #training
+    #training
+    for i in range(10):
         node_fea = backbone(input_image)
         update_fold_dic(stable_dic, fold_dic)
-           #先将折叠中心的node_fea添加
+            #先将折叠中心的node_fea添加
         for k in fold_dic.fold_dict.keys():# 不存在空的折叠点
             node_fea_k = torch.zeros(768).to("cuda:0")
             for node in fold_dic.fold_dict[k]:
@@ -141,13 +263,13 @@ def evaluate_wsi(backbone:torch.nn.Module, gcn: torch.nn.Module,
 
         node_fea_detach = node_fea.clone().detach()
         g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, 1, "cuda:1").init_graph()
-        clu_label = Cluster(node_fea=node_fea_detach, cluster_num = 9, device='cuda:1').predict()
+        clu_label = Cluster(node_fea=node_fea_detach, cluster_num = clus_num, device='cuda:1').predict()
         #向字典中添加聚类标签#TODO
         for i in range(len(wsi_dict)):
             wsi_dict[i].append(clu_label[i])
         mask_rates = [args.mask_rate_high, args.mask_rate_mid, args.mask_rate_low]#各个被mask的比例
-        mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, args.cluster_num, mask_rates, wsi_dict, "cuda:1", stable_dic)#TODO 检查数量
-        mask_edge_idx = chooseEdgeMask(u_v_pair, clu_label,sort_idx_rst, {"inter":0.1, "inner":0.1, "random":0.1} )
+        mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, clus_num, mask_rates, wsi_dict, "cuda:1", stable_dic, clu_label)#TODO 检查数量
+        mask_edge_idx = chooseEdgeMask(u_v_pair, clu_label, sort_idx_rst, {"inter":0.1, "inner":0.1, "random":0.1} )
         node_fea[mask_idx] = 0
         edge_fea[mask_edge_idx] = 0
         print(f"this epoch mask nodes:{len(mask_idx)}, mask edges: {len(mask_edge_idx)}")
@@ -161,13 +283,16 @@ def evaluate_wsi(backbone:torch.nn.Module, gcn: torch.nn.Module,
         # save_log(args.log_folder, wsi_name, epoch, clu_label, mask_idx)
         #将这旧的聚类标签删除
         true_label =[]
-        print(wsi_dict[1])
+        # print(wsi_dict[1])
         for i in range(len(wsi_dict)):
             wsi_dict[i].pop(-1)
             true_label.append(int(wsi_dict[i][3]))
-        pre_label = Cluster(node_fea=predict_nodes.detach(), cluster_num = args.cluster_num, device='cuda:1').predict()
+        pre_label = Cluster(node_fea=predict_nodes.detach(), cluster_num = clus_num, device='cuda:1').predict()
+        
+        print(fold_dic.fold_dict)
         # 解折叠
         pre_label_list = []   
+        # print(f"真实标签{Counter(true_label)}")
         for i in pre_label:
             pre_label_list.append(i.item())
         # print(f"前面{Counter(pre_label_list)}")
@@ -180,10 +305,9 @@ def evaluate_wsi(backbone:torch.nn.Module, gcn: torch.nn.Module,
                 pre_label_list[i] = fold_label
             pre_label_list.pop(-1)
         # print(f"后面后面后面{Counter(pre_label_list)}")
-        try:
-            nmi, ari, f, acc, f1_score = evaluate(true_label, pre_label_list)
-        except:
-            print("预测的标签种类少于label的种类，无法评价")
-            acc = -1
+        nmi, ari, f, acc, f1_score = evaluate(true_label, pre_label_list)
+        # except:
+        #     print("预测的标签种类少于label的种类，无法评价")
+        #     acc = -1
         print(f"acc:{acc}")
-        save_log_eval(args.save_folder_test, big_epoch, wsi_name, acc, mini_patch, time, epoch, total)
+    # save_log_eval(args.save_folder_test, big_epoch, wsi_name, acc, mini_patch, time, epoch, total)

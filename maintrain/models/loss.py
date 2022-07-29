@@ -92,8 +92,12 @@ class myloss(torch.nn.Module):
                     final_i = torch.cat(final_i, dim=0).mean(dim=0)
                     final_j = torch.cat(final_j, dim=0).mean(dim=0)
                     L2_dist += F.pairwise_distance(final_i.unsqueeze(0), final_j.unsqueeze(0), p=2)
+        if L2_dist != 0:
+            res = 1 / L2_dist
+        else:
+            res = torch.tensor(0).to('cuda:1')
         
-        return 1 / L2_dist
+        return res
                 
 
     def forward(self, node_fea, clu_label, center_fea, mask_nodes, mask_weight, sort_idx_rst):
