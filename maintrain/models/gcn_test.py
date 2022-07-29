@@ -46,19 +46,19 @@ def L2_dist(x, y):
     return dis
 
 
-class graph_mlp(torch.nn.Module):
-    def __init__(self, in_dim, hid_dim, out_dim):
-        super(graph_mlp, self).__init__()
-        self.linear1 = torch.nn.Linear(in_dim, hid_dim)
-        self.linear2 = torch.nn.Linear(hid_dim, out_dim)
-        self.relu = torch.nn.ReLU()
+# class graph_mlp(torch.nn.Module):
+#     def __init__(self, in_dim, hid_dim, out_dim):
+#         super(graph_mlp, self).__init__()
+#         self.linear1 = torch.nn.Linear(in_dim, hid_dim)
+#         self.linear2 = torch.nn.Linear(hid_dim, out_dim)
+#         self.relu = torch.nn.ReLU()
 
-    def forward(self, x):
-        # print(f"inputsize{x.size()}")
-        x = self.linear1(x)
-        x = self.relu(x)
-        x = self.linear2(x)
-        return x
+#     def forward(self, x):
+#         # print(f"inputsize{x.size()}")
+#         x = self.linear1(x)
+#         x = self.relu(x)
+#         x = self.linear2(x)
+#         return x
 
 def create_activation(name):
     if name == "relu":
@@ -212,7 +212,6 @@ class GraphConv(nn.Module):
         self._in_feats = in_dim
         self._out_feats = out_dim
         self.fc = nn.Linear(in_dim, out_dim)
-        self.mlp = graph_mlp(768, 768, 768)
 
         if residual:
             if self._in_feats != self._out_feats:

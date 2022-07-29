@@ -1,4 +1,5 @@
 # from matplotlib.font_manager import _Weight
+from collections import Counter
 import torch
 import numpy as np
 from sklearn import metrics
@@ -49,11 +50,11 @@ def save_log_eval(save_folder, big_epoch, wsi_name, acc, mini_patch, time, epoch
 
 
 def evaluate(label, pred):
-    pred = pred.cpu().numpy()
     nmi = metrics.normalized_mutual_info_score(label, pred)
     ari = metrics.adjusted_rand_score(label, pred)
     f = metrics.fowlkes_mallows_score(label, pred)
-    pred_adjusted = get_y_preds(label, pred, 9)
+    print(f"我又来了{len(pred)} {len(label)}")
+    pred_adjusted = get_y_preds(label, pred, len(set(label)))
     # print(f"pre_label:{pred_adjusted[0:10]}")
     # print(f"TRUE_LABEL:{label[0:10]}")
     # print(f"my_predict acc={(pred_adjusted == label).sum() / label.shape[0]}")
@@ -93,6 +94,7 @@ def get_y_preds(y_true, cluster_assignments, n_clusters):
     """
     confusion_matrix = metrics.confusion_matrix(y_true, cluster_assignments, labels=None)
     # compute accuracy based on optimal 1:1 assignment of clusters to labels
+    print(f"混淆举证的大小{confusion_matrix.shape}")
     cost_matrix = calculate_cost_matrix(confusion_matrix, n_clusters)
     indices = Munkres().compute(cost_matrix)
     kmeans_to_true_cluster_labels = get_cluster_labels_from_indices(indices)
@@ -105,7 +107,6 @@ def get_y_preds(y_true, cluster_assignments, n_clusters):
 
 @torch.no_grad()
 def evaluate_wsi(backbone:torch.nn.Module, gcn: torch.nn.Module,
-            graph_mlp:torch.nn.Module,
             wsi_img,
             wsi_dict,
             big_epoch,
@@ -115,7 +116,6 @@ def evaluate_wsi(backbone:torch.nn.Module, gcn: torch.nn.Module,
         ):
     backbone.eval()
     gcn.eval()
-    graph_mlp.eval()
     print(f"start eval")
     fold_dic = fd(args.batch_size)#用于记录被折叠的点
     stable_dic = sd()#用于记录稳定的点
@@ -130,7 +130,6 @@ def evaluate_wsi(backbone:torch.nn.Module, gcn: torch.nn.Module,
         #training
         node_fea = backbone(input_image)
         update_fold_dic(stable_dic, fold_dic)
-
            #先将折叠中心的node_fea添加
         for k in fold_dic.fold_dict.keys():# 不存在空的折叠点
             node_fea_k = torch.zeros(768).to("cuda:0")
@@ -167,6 +166,24 @@ def evaluate_wsi(backbone:torch.nn.Module, gcn: torch.nn.Module,
             wsi_dict[i].pop(-1)
             true_label.append(int(wsi_dict[i][3]))
         pre_label = Cluster(node_fea=predict_nodes.detach(), cluster_num = args.cluster_num, device='cuda:1').predict()
-        nmi, ari, f, acc, f1_score = evaluate(true_label, pre_label)
+        # 解折叠
+        pre_label_list = []   
+        for i in pre_label:
+            pre_label_list.append(i.item())
+        # print(f"前面{Counter(pre_label_list)}")
+        while(len(pre_label_list) != len(wsi_dict)):
+            #倒着来
+            fold_idx = len(pre_label_list) - 1
+            fold_nodes = fold_dic.fold_dict[fold_idx]
+            fold_label = pre_label_list[fold_idx]
+            for i in fold_nodes:
+                pre_label_list[i] = fold_label
+            pre_label_list.pop(-1)
+        # print(f"后面后面后面{Counter(pre_label_list)}")
+        try:
+            nmi, ari, f, acc, f1_score = evaluate(true_label, pre_label_list)
+        except:
+            print("预测的标签种类少于label的种类，无法评价")
+            acc = -1
         print(f"acc:{acc}")
         save_log_eval(args.save_folder_test, big_epoch, wsi_name, acc, mini_patch, time, epoch, total)

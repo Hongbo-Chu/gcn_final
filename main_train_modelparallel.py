@@ -24,7 +24,7 @@ def get_args_parser():
     # 
     parser.add_argument('--device', type=str, default="cuda:0",
                         help='which gpu to use if any (default: 0)')
-    parser.add_argument('--batch_size', type=int, default=300,
+    parser.add_argument('--batch_size', type=int, default=1300,
                         help='input batch size for training (default: 32)')
     parser.add_argument('--local_rank', default=-1, type=int,
                         help='node rank for distributed training')
@@ -123,28 +123,41 @@ def run():
     args = get_args_parser()
     args = args.parse_args()
     backboneModel = build_model(args.backbone).to('cuda:0')
-    pretrained_dict  = torch.load('/root/autodl-tmp/mae-multi3/output_pretrain_256/checkpoint-30.pth')
-    backbone_dict = backboneModel.state_dict()
-    pretrained_dict  = {key: value for key, value in pretrained_dict.items() if (key in backbone_dict)}
-    print(pretrained_dict)
-    graph_model = GCN(in_dim=args.embeding_dim, num_hidden=256, out_dim=args.embeding_dim, num_layers=4, dropout=0,activation="prelu", residual=True,norm=nn.LayerNorm).to('cuda:1')
-    graph_mlp = g_mlp(in_dim=6, hid_dim=16, out_dim = 1).to('cuda:1')
+    # pretrained_dict  = torch.load('/root/autodl-tmp/mae-multi3/output_pretrain_256/checkpoint-30.pth')
+    # backbone_dict = backboneModel.state_dict()
+    # pretrained_dict  = {key: value for key, value in pretrained_dict.items() if (key in backbone_dict)}
+    # print(pretrained_dict)
+    graph_model = GCN(in_dim=args.embeding_dim, num_hidden=128, out_dim=args.embeding_dim, num_layers=6, dropout=0,activation="prelu", residual=True,norm=nn.LayerNorm).to('cuda:1')
+    # graph_mlp = g_mlp(in_dim=6, hid_dim=16, out_dim = 1).to('cuda:1')
     # optimizer = optim #.Adam(list(backboneModel.parameters()) + list(graph_model.parameters()) + list(graph_mlp.parameters()), lr=args.lr, weight_decay=args.decay)
     criterion = myloss().to('cuda:1')
-    training_wsis = ['50', '44', '46', '48', '49', '57', '53', '56', '43']
+    # training_wsis = ['50', '44', '46', '48', '49', '57', '53', '56', '43']
+    training_wsis = ['43']
     saving_path = '/root/autodl-tmp/training_wsi'
-    for epoch in range(20):
-        for tw in training_wsis:
-            img_load_path = os.path.join(saving_path, (tw + '.pt'))
-            dict_load_path = os.path.join(saving_path, (tw + '.npy'))
-            wsi_img = torch.load(img_load_path)
-            wsi_dict =  dict(np.load(dict_load_path, allow_pickle='TRUE').item())
-            dict_crop, img_crop, total = crop_wsi(wsi_dict, wsi_img, args.batch_size, 0.5)
-            for idx, (wdict, wimg) in enumerate(zip(dict_crop, img_crop)):
-                train_one_wsi(backboneModel, graph_model, graph_mlp, criterion, wimg, wdict, idx, total, epoch, args)
-                evaluate_wsi(backboneModel, graph_model, graph_mlp, wimg, wdict,epoch, idx,  total, args)
-                state = {'backbone': backboneModel.state_dict(), 'graph_mlp': graph_mlp.state_dict(), 'gcn': graph_model.state_dict()}
-                save_path = os.path.join(args.weight_folder, 'epoch'+ str(epoch) + 'wsi' + str(tw) + '.pt')
-                torch.save(state, save_path)
+    # for epoch in range(200):
+    #     for tw in training_wsis:
+    #         img_load_path = os.path.join(saving_path, (tw + '.pt'))
+    #         dict_load_path = os.path.join(saving_path, (tw + '.npy'))
+    #         wsi_img = torch.load(img_load_path)
+    #         wsi_dict =  dict(np.load(dict_load_path, allow_pickle='TRUE').item())
+    #         dict_crop, img_crop, total = crop_wsi(wsi_dict, wsi_img, args.batch_size, 0.5)
+    #         for idx, (wdict, wimg) in enumerate(zip(dict_crop, img_crop)):
+    #             train_one_wsi(backboneModel, graph_model, graph_mlp, criterion, wimg, wdict, idx, total, epoch, args)
+    #             evaluate_wsi(backboneModel, graph_model, graph_mlp, wimg, wdict,epoch, idx,  total, args)
+    #             state = {'backbone': backboneModel.state_dict(), 'graph_mlp': graph_mlp.state_dict(), 'gcn': graph_model.state_dict()}
+    #             save_path = os.path.join(args.weight_folder, 'epoch'+ str(epoch) + 'wsi' + str(tw) + '.pt')
+    #             torch.save(state, save_path)
+    for epoch in range(200):
+        img_load_path = os.path.join(saving_path, ('43'+ '.pt'))
+        dict_load_path = os.path.join(saving_path, ('43' + '.npy'))
+        wsi_img = torch.load(img_load_path)
+        wsi_dict =  dict(np.load(dict_load_path, allow_pickle='TRUE').item())
+        dict_crop, img_crop, total = crop_wsi(wsi_dict, wsi_img, args.batch_size, 0.5)
+        for idx, (wdict, wimg) in enumerate(zip(dict_crop, img_crop)):
+            train_one_wsi(backboneModel, graph_model, criterion, wimg, wdict, idx, total, epoch, args)
+            evaluate_wsi(backboneModel, graph_model, wimg, wdict,epoch, idx,  total, args)
+            state = {'backbone': backboneModel.state_dict(), 'gcn': graph_model.state_dict()}
+            save_path = os.path.join(args.weight_folder, 'epoch'+ str(epoch) + 'wsi' + str(43) + 'minipatch' + str(idx) + '.pt')
+            torch.save(state, save_path)
 if __name__ == "__main__":
     run()

@@ -198,7 +198,7 @@ def chooseEdgeMask(u_v_pair, clus_label, sort_idx_rst, rates:dict):
         源节点-目标节点对在所有边中的位置，list形式
     """
     u, v = u_v_pair #u,v分别为两个长列表
-    pairs = [(u[i], v[i]) for i in range(len(u))]#将u,v变成list of pair的形式，方便后面查找
+    pairs_dict = {(u[i], v[i]): i for i in range(len(u))}#将u,v变成list of pair的形式，方便后面查找
     diff = []
     same = [[] for _ in range(len(set(clus_label)))]
     # same = []
@@ -210,10 +210,9 @@ def chooseEdgeMask(u_v_pair, clus_label, sort_idx_rst, rates:dict):
             diff.append((u[i], v[i]))
         else:
             same[clus_label[u[i]]].append((u[i], v[i]))
-    
     # 类间
     random.shuffle(diff)
-    mask_edge_pair.extend(diff[:int(len(u_v_pair) * rates['inter'])])
+    mask_edge_pair.extend(diff[:int(len(u) * rates['inter'])])
     #类内半径
     def judge_rad(u, v, sort_idx, rate):
         """ 
@@ -231,14 +230,14 @@ def chooseEdgeMask(u_v_pair, clus_label, sort_idx_rst, rates:dict):
     for idx, clus in enumerate(same):
         #如果一个在前10%,一个在后10%就算类内半径
         for u_v in clus:
-            u = u_v[0]
-            v = u_v[1]
-            if judge_rad(u, v, sort_idx_rst[idx], 0.1):
+            u_ = u_v[0]
+            v_ = u_v[1]
+            if judge_rad(u_, v_, sort_idx_rst[idx], 0.1):
                 temp.append(u_v)
-            if judge_center(u, v, sort_idx_rst[idx], 0.1):
+            if judge_center(u_, v_, sort_idx_rst[idx], 0.1):
                 temp.append(u_v)
     random.shuffle(temp)
-    mask_edge_pair.extend(temp[:int(len(u_v_pair) * rates['inner'])])
+    mask_edge_pair.extend(temp[:int(len(u) * rates['inner'])])
     
     #随机
     temp2 = []#将same打散，用于取随机
@@ -246,8 +245,8 @@ def chooseEdgeMask(u_v_pair, clus_label, sort_idx_rst, rates:dict):
         temp2.append(i)
     #去重
     random.shuffle(temp2)
-    count = len(u_v_pair) * rates['random']
-    for i in range(len(u_v_pair)):
+    count = len(u) * rates['random']
+    for i in range(len(temp2)):
         if count == 0:
             break
         if temp2[i] not in temp:
@@ -260,7 +259,7 @@ def chooseEdgeMask(u_v_pair, clus_label, sort_idx_rst, rates:dict):
     print(len(mask_edge_pair))
     for i, pair in tqdm(enumerate(mask_edge_pair)):
         # print(i)
-        idx = pairs.index(pair)
+        idx = pairs_dict[pair]
         edge_idx.append(idx)
 
     return edge_idx
@@ -306,7 +305,7 @@ def compute_pys_feature(wsi, n):
     for j in range(len(wsi)):
         pos = wsi[j][2]
         _, num_type = neighber_type(pos, n, pos_dict)
-        if num_type == 2:
+        if num_type == 1:
             center_nodes.append(j)
         else:
             edge_nodes.append(j)

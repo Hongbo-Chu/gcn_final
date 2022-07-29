@@ -129,9 +129,11 @@ class new_graph:
         # e_fea = self.edge_mlp(e_fea).view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
         #将所有不到阈值的edge_fea归零
 #         print(e_fea)
-        threshold = int(e_fea.mean())
-        threshold_e = torch.threshold(e_fea, threshold, 0)#size() = n,n
-        print(threshold_e.size()) 
+        # tt = e_fea.view(e_fea.size(0)**2)
+        # print("算我呢")
+        # threshold = sorted(tt)[len(tt)//2]
+        # print("caisaunwa")
+        threshold_e = torch.threshold(e_fea, 0.2, 0)#size() = n,n
         #然后判断需要增强的邻居节点
         edge_enhance = []
         for node in range(len(self.wsi_dic)):
@@ -148,7 +150,7 @@ class new_graph:
         edge_enhance = torch.cat(edge_enhance, dim=0).to(self.device)
         # print(f"用于边增强的矩阵的形状{edge_enhance.size()}")
         #现在的边值是根据周围一圈邻居的值和原edge_fea生成的
-        threshold_e = (edge_enhance + threshold_e)
+        # threshold_e = (edge_enhance + threshold_e)
         u = []
         v = []
         ee = []

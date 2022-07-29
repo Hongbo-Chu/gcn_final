@@ -20,7 +20,7 @@ class myloss(torch.nn.Module):
             mask_weight:对于mask点的聚类权重
         """
         #TODO用矩阵的方式优化
-        L2_dist = [torch.tensor([]).to("cuda:1") for _ in range(len(clu_label))]
+        L2_dist = [torch.tensor([]).to("cuda:1") for _ in range(len(center_fea))]
         final_loss = torch.tensor(0).to("cuda:1")
         # print(f"loss检测{node_fea.size()}, {len(center_fea)}, {len(clu_label)}")
         center_fea = torch.stack(center_fea).to("cuda:1")
@@ -29,6 +29,7 @@ class myloss(torch.nn.Module):
             if  i in mask_nodes:
                 L2_dist[clu_label[i]] = torch.cat([L2_dist[clu_label[i]],  (1 + mask_weight) * F.pairwise_distance(node_fea[i].unsqueeze(0), center_fea[clu_label[i]].unsqueeze(0), p=2)])
         #归一化
+
         for i in range(len(L2_dist)):
             if len(L2_dist[i]) != 0:
                 L2_dis_min = L2_dist[i].min()   
@@ -96,7 +97,7 @@ class myloss(torch.nn.Module):
                 
 
     def forward(self, node_fea, clu_label, center_fea, mask_nodes, mask_weight, sort_idx_rst):
-        return self.inner_cluster_loss(node_fea, clu_label, center_fea, mask_nodes, mask_weight) # + self.inter_cluster_loss(node_fea, sort_idx_rst, center_fea, mask_nodes, mask_weight, 0.8)
+        return self.inner_cluster_loss(node_fea, clu_label, center_fea, mask_nodes, mask_weight) + self.inter_cluster_loss(node_fea, sort_idx_rst, center_fea, mask_nodes, mask_weight, 0.8)
 
 
 

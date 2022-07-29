@@ -85,7 +85,7 @@ def save_log(save_folder, wsi_name, mini_patch, total, epoch, mask_nodes, fold_d
 
 
 
-def freeze(backbone, graph_model, graph_mlp, args):
+def freeze(backbone, graph_model, args):
     """用于冻结模型的参数
 
     Args:
@@ -98,9 +98,9 @@ def freeze(backbone, graph_model, graph_mlp, args):
     #告诉优化器，哪些需要更新，那些不需要，这一步至关重要
     #filter() 函数用于过滤序列，过滤掉不符合条件的元素，返回由符合条件元素组成的新列表
     # optimizer.Adam(filter(lambda p: p.requires_grad, backbone.parameters()), lr=args.lr)
-    return optimizer.Adam(list(graph_model.parameters()) + list(graph_mlp.parameters()), lr=args.lr, weight_decay=args.decay)
+    return optimizer.Adam(list(graph_model.parameters()), lr=args.lr, weight_decay=args.decay)
 
-def unfreeze(backbone, graph_model, graph_mlp, args):
+def unfreeze(backbone, graph_model, args):
     """解冻模型的参数
 
     Args:
@@ -109,12 +109,11 @@ def unfreeze(backbone, graph_model, graph_mlp, args):
     for child in backbone.children():
         for param in child.parameters():
             param.requires_grad = True
-    return optimizer.Adam(list(backbone.parameters()) + list(graph_model.parameters()) + list(graph_mlp.parameters()), lr=args.lr, weight_decay=args.decay)
+    return optimizer.Adam(list(backbone.parameters()) + list(graph_model.parameters()), lr=args.lr, weight_decay=args.decay)
 
 
 
 def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module, 
-                    graph_mlp: torch.nn.Module, 
                     criterion:torch.nn.Module,
                     wsi_img,
                     wsi_dict,
@@ -126,7 +125,6 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
    
     backbone.train()
     gcn.train()
-    graph_mlp.train()
     wsi_name = wsi_dict[0][0].split("_")[0]
     fold_dic = fd(args.batch_size)#用于记录被折叠的点
     stable_dic = sd()#用于记录稳定的点
@@ -135,10 +133,10 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         print(f"wsi:[{wsi_name}], epoch:[{epoch}]:")
         input_img = wsi_img.to("cuda:0")
 
-        if epoch % 5 == 0:
-            optimizer = freeze(backbone, gcn, graph_mlp, args)
+        if (epoch+1) % 3 == 0:
+            optimizer = freeze(backbone, gcn, args)
         else:
-            optimizer = unfreeze(backbone, gcn, graph_mlp, args)
+            optimizer = unfreeze(backbone, gcn, args)
 
         #training
         node_fea = backbone(input_img)
@@ -152,6 +150,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
             node_fea = torch.cat([node_fea, node_fea_k.unsqueeze(0)], dim = 0)
 
         node_fea_detach = node_fea.clone().detach()#从计算图中剥离
+        # node_fea_detach = node_fea_detach.to("cpu")
         g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, 1, "cuda:1").init_graph()
         
         
