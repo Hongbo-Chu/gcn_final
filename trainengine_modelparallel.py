@@ -133,7 +133,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
     for epoch in range(args.epoch_per_wsi):
         start = time()
         print(f"wsi:[{wsi_name}], epoch:[{epoch}]:")
-        input_img = wsi_img.to("cuda:0")
+        input_img = wsi_img.to(args.device0)
 
         if (epoch+1) % 3 == 0:
             optimizer = freeze(backbone, gcn, args)
@@ -145,7 +145,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         update_fold_dic(stable_dic, fold_dic)
          #先将折叠中心的node_fea添加
         for k in fold_dic.fold_dict.keys():# 不存在空的折叠点
-            node_fea_k = torch.zeros(768).to("cuda:0")
+            node_fea_k = torch.zeros(768).to(args.device0)
             for node in fold_dic.fold_dict[k]:
                 node_fea_k += node_fea[node]
             node_fea_k = node_fea_k / len(fold_dic.fold_dict[k])
@@ -153,22 +153,22 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
 
         node_fea_detach = node_fea.clone().detach()#从计算图中剥离
         # node_fea_detach = node_fea_detach.to("cpu")
-        g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, 1, "cuda:1").init_graph()
+        g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, 1, args.device1).init_graph()
         
         
         
-        clu_label = Cluster(node_fea=node_fea_detach, cluster_num = clus_num, device='cuda:1').predict()
+        clu_label = Cluster(node_fea=node_fea_detach, cluster_num = clus_num, device=args.device1).predict()
         for i in range(len(wsi_dict)):
             wsi_dict[i].append(clu_label[i])
         mask_rates = [args.mask_rate_high, args.mask_rate_mid, args.mask_rate_low]#各个被mask的比例
-        mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, clus_num, mask_rates, wsi_dict, "cuda:1", stable_dic, clu_label)#TODO 检查数量
+        mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, clus_num, mask_rates, wsi_dict, args.device1, stable_dic, clu_label)#TODO 检查数量
         mask_edge_idx = chooseEdgeMask(u_v_pair, clu_label,sort_idx_rst, {"inter":0.1, "inner":0.1, "random":0.1} )#类内半径多一点
         node_fea[mask_idx] = 0
         edge_fea[mask_edge_idx] = 0
         print(f"this epoch mask nodes:{len(mask_idx)}, mask edges: {len(mask_edge_idx)}")
-        g = g.to("cuda:1")
-        edge_fea = edge_fea.to("cuda:1")
-        node_fea = node_fea.to("cuda:1")
+        g = g.to(args.device1)
+        edge_fea = edge_fea.to(args.device1)
+        node_fea = node_fea.to(args.device1)
         # print(f"test发发发发发发{node_fea.size()}， {node_fea.device}, {edge_fea.size()}, {edge_fea.device}")
         predict_nodes = gcn(g, node_fea, edge_fea)
 

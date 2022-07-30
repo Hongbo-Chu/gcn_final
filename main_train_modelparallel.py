@@ -23,9 +23,11 @@ from evaluate import evaluate_wsi
 def get_args_parser():
     parser = argparse.ArgumentParser(description='PyTorch implementation')
     # 
-    parser.add_argument('--device', type=str, default="cuda:0",
+    parser.add_argument('--device0', type=str, default="cuda:0",
                         help='which gpu to use if any (default: 0)')
-    parser.add_argument('--batch_size', type=int, default=1400,
+    parser.add_argument('--device1', type=str, default="cuda:1",
+                        help='which gpu to use if any (default: 0)')
+    parser.add_argument('--batch_size', type=int, default=1300,
                         help='input batch size for training (default: 32)')
     parser.add_argument('--local_rank', default=-1, type=int,
                         help='node rank for distributed training')
@@ -123,15 +125,15 @@ def run():
 #     model = Model(num_features, 128, num_classes).to(device)
     args = get_args_parser()
     args = args.parse_args()
-    backboneModel = build_model(args.backbone).to('cuda:0')
+    backboneModel = build_model(args.backbone).to(args.device0)
     # pretrained_dict  = torch.load('/root/autodl-tmp/mae-multi3/output_pretrain_256/checkpoint-30.pth')
     # backbone_dict = backboneModel.state_dict()
     # pretrained_dict  = {key: value for key, value in pretrained_dict.items() if (key in backbone_dict)}
     # print(pretrained_dict)
-    graph_model = GCN(in_dim=args.embeding_dim, num_hidden=128, out_dim=args.embeding_dim, num_layers=6, dropout=0,activation="prelu", residual=True,norm=nn.LayerNorm).to('cuda:1')
+    graph_model = GCN(in_dim=args.embeding_dim, num_hidden=128, out_dim=args.embeding_dim, num_layers=6, dropout=0,activation="prelu", residual=True,norm=nn.LayerNorm).to(args.device1)
     # graph_mlp = g_mlp(in_dim=6, hid_dim=16, out_dim = 1).to('cuda:1')
     # optimizer = optim #.Adam(list(backboneModel.parameters()) + list(graph_model.parameters()) + list(graph_mlp.parameters()), lr=args.lr, weight_decay=args.decay)
-    criterion = myloss().to('cuda:1')
+    criterion = myloss().to(args.device1)
     # training_wsis = ['50', '44', '46', '48', '49', '57', '53', '56', '43']
     training_wsis = ['43']
     saving_path = '/root/autodl-tmp/training_wsi'
@@ -149,8 +151,8 @@ def run():
     #             save_path = os.path.join(args.weight_folder, 'epoch'+ str(epoch) + 'wsi' + str(tw) + '.pt')
     #             torch.save(state, save_path)
     for epoch in range(200):
-        img_load_path = os.path.join(saving_path, ('46'+ '.pt'))
-        dict_load_path = os.path.join(saving_path, ('46' + '.npy'))
+        img_load_path = os.path.join(saving_path, ('43'+ '.pt'))
+        dict_load_path = os.path.join(saving_path, ('43' + '.npy'))
         wsi_img = torch.load(img_load_path)
         wsi_dict =  dict(np.load(dict_load_path, allow_pickle='TRUE').item())
         dict_crop, img_crop, total = crop_wsi(wsi_dict, wsi_img, args.batch_size, 0.5)
@@ -162,6 +164,9 @@ def run():
             print(Counter(la))
             clus_num = len(Counter(la))
             train_one_wsi(backboneModel, graph_model, criterion, wimg, wdict, idx, total, epoch, clus_num, args)
+        #合并patch,并验证
+        #每个patch返回{center_fae:[true_label, num]}
+
             # evaluate_wsi(backboneModel, graph_model, wimg, wdict,epoch, idx,  total, clus_num, args)
             # state = {'backbone': backboneModel.state_dict(), 'gcn': graph_model.state_dict()}
             # save_path = os.path.join(args.weight_folder, 'epoch'+ str(epoch) + 'wsi' + str(43) + 'minipatch' + str(idx) + '.pt')

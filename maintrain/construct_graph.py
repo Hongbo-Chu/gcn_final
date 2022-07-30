@@ -133,7 +133,7 @@ class new_graph:
         # print("算我呢")
         # threshold = sorted(tt)[len(tt)//2]
         # print("caisaunwa")
-        threshold_e = torch.threshold(e_fea, 0.1, 0)#size() = n,n
+        threshold_e = torch.threshold(e_fea, 0.4, 0)#size() = n,n
         #然后判断需要增强的邻居节点
         edge_enhance = []
         for node in range(len(self.wsi_dic)):
