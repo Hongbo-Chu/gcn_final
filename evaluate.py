@@ -50,72 +50,53 @@ def save_log_eval(save_folder, big_epoch, wsi_name, acc, mini_patch, time, epoch
 
 
 
-# def evaluate(label, pred):
-#     print(f"我又来了{len(pred)} {len(label)}")
-#     print(f"预测标签的种类{len(Counter(pred))}")
-#     pred = pred.cpu().numpy()
-#     nmi = metrics.normalized_mutual_info_score(label, pred)
-#     ari = metrics.adjusted_rand_score(label, pred)
-#     f = metrics.fowlkes_mallows_score(label, pred)
+class minipatch:
+    def __init__(self, clus_center, name):
+        self.mini_patch_name = name
+        self.clus_center_list = clus_center
+        self.clus_num = len(clus_center)
 
-#     pred_adjusted = get_y_preds(label, pred, len(set(label)))
-#     # print(f"pre_label:{pred_adjusted[0:10]}")
-#     # print(f"TRUE_LABEL:{label[0:10]}")
-#     # print(f"my_predict acc={(pred_adjusted == label).sum() / label.shape[0]}")
-#     acc = metrics.accuracy_score(pred_adjusted, label)
-#     f1 = f1_score(label, pred, average = 'weighted')
-#     return nmi, ari, f, acc, f1
+def merge_mini_patch(patches_list, thresholed)-> minipatch:
+    """_summary_
 
+    Args:
+        patches_dict (_type_): {name:center_fea}
+    """
+    def merge(buffer, A:int, B:int, thresholed):
+        #寻找相似度高的
+        temp_list = []
+        new_name = len(buffer) + 1 
+        a = buffer[A]
+        b = buffer[B]
+        for i in range(a.clus_num):
+            sim_buffer = []#用于存储a[i]和b的所有相似度，万一有多个阈值以上的
+            for j, _ in enumerate(b.clus_center_list):#这样写可以让内层循环的长度随b变化而变化
+                # similarity = F.pairwise_distance(a.clus_center_list[i], b.clus_center_list[j], p=2)
+                similarity = torch.cosine_similarity(a.clus_center_list[i], b.clus_center_list[j])
+                sim_buffer.append(similarity)
+            print(sim_buffer)
+            max_idx = sim_buffer.index(max(sim_buffer))
+            #大于阈值就融合#取平均
+            if max(sim_buffer) > thresholed:
+                avg = (a.clus_center_list[i] + b.clus_center_list[max_idx]) / 2
+                temp_list.append(avg)
+                b.clus_center_list.pop(max_idx)
+            else:
+                temp_list.append(a.clus_center_list[i])
+        #最后将b中和a没有相似度的也加进去
+        temp_list.extend(b.clus_center_list)
+        buffer.pop(B)
+        buffer.pop(A)
+        buffer.append(minipatch(temp_list, new_name))
+            
+    minipatchbuffer = []
+    for idx, clu_centers in enumerate(patches_list):
+        minipatchbuffer.append(minipatch(clu_centers, idx))
+    idx = 0
+    while(len(minipatchbuffer) != 1):
+        merge(minipatchbuffer, 0, 1, thresholed)
+    return minipatchbuffer[0]
 
-# def calculate_cost_matrix(C, n_clusters):
-#     cost_matrix = np.zeros((n_clusters, n_clusters))
-#     # cost_matrix[i,j] will be the cost of assigning cluster i to label j
-#     for j in range(n_clusters):
-#         s = np.sum(C[:, j])  # number of examples in cluster i
-#         for i in range(n_clusters):
-#             t = C[i, j]
-#             cost_matrix[j, i] = s - t
-#     return cost_matrix
-
-
-# def get_cluster_labels_from_indices(indices):
-#     n_clusters = len(indices)
-#     cluster_labels = np.zeros(n_clusters)
-#     for i in range(n_clusters):
-#         cluster_labels[i] = indices[i][1]
-#     return cluster_labels
-
-
-# def get_y_preds(y_true, cluster_assignments, n_clusters):
-#     """
-#     Computes the predicted labels, where label assignments now
-#     correspond to the actual labels in y_true (as estimated by Munkres)
-#     cluster_assignments:    array of labels, outputted by kmeans
-#     y_true:                 true labels
-#     n_clusters:             number of clusters in the dataset
-#     returns:    a tuple containing the accuracy and confusion matrix,
-#                 in that order
-#     """
-#     print(cluster_assignments)
-#     confusion_matrix = metrics.confusion_matrix(y_true, cluster_assignments, labels=None)
-#     # compute accuracy based on optimal 1:1 assignment of clusters to labels
-#     print(f"混淆举证的大小{confusion_matrix}")
-#     cost_matrix = calculate_cost_matrix(confusion_matrix, n_clusters)
-#     print(f"costmatric{cost_matrix}")
-#     indices = Munkres().compute(cost_matrix)
-#     print(f"shishi{indices}")
-#     kmeans_to_true_cluster_labels = get_cluster_labels_from_indices(indices)
-#     # if np.min(cluster_assignments) != 0:
-#     #     cluster_assignments = cluster_assignments - np.min(cluster_assignments)
-#     print(f"woshisahbi{kmeans_to_true_cluster_labels}")
-#     print(f"凑凑{len(Counter(cluster_assignments))}")
-#     print(cluster_assignments)
-#     # clu_ass = []
-#     # for i in cluster_assignments:
-#     #     clu_ass.append(i)
-#     print(f"试试{kmeans_to_true_cluster_labels}")
-#     y_pred = kmeans_to_true_cluster_labels[cluster_assignments]
-#     return y_pred
 
 
 """
