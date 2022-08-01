@@ -121,7 +121,6 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
                     mini_patch,
                     total,
                     big_epoch,
-                    clus_num,
                     args=None):
             
    
@@ -157,7 +156,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         
         
         
-        clu_label = Cluster(node_fea=node_fea_detach, cluster_num = clus_num, device=args.device1).predict()
+        clu_label, clus_num = Cluster(node_fea=node_fea_detach, device=args.device1, method=args.cluster_method).predict(threshold_dis=3)
         for i in range(len(wsi_dict)):
             wsi_dict[i].append(clu_label[i])
         mask_rates = [args.mask_rate_high, args.mask_rate_mid, args.mask_rate_low]#各个被mask的比例
@@ -180,7 +179,8 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         optimizer.zero_grad()
         pys_center, pys_edge = compute_pys_feature(wsi_dict, args.pos_choose) #计算物理特征
         # fea2pos(fea_center, fea_edge, pys_center, pys_edge)#统计对齐信息并打印
-        clu_labe_new = Cluster(node_fea=predict_nodes, cluster_num = clus_num, device='cuda:1').predict()
+        predict_nodes_detach = predict_nodes.clone().detach()
+        clu_labe_new = Cluster(node_fea=predict_nodes_detach, device='cuda:1', method=args.cluster_method).predict(threshold_dis=3)
         for i in range(len(wsi_dict)):
             wsi_dict[i].pop(-1)
         train_time = int(time() - start)

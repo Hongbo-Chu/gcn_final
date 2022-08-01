@@ -27,7 +27,7 @@ def get_args_parser():
                         help='which gpu to use if any (default: 0)')
     parser.add_argument('--device1', type=str, default="cuda:1",
                         help='which gpu to use if any (default: 0)')
-    parser.add_argument('--batch_size', type=int, default=1300,
+    parser.add_argument('--batch_size', type=int, default=300,
                         help='input batch size for training (default: 32)')
     parser.add_argument('--local_rank', default=-1, type=int,
                         help='node rank for distributed training')
@@ -38,6 +38,8 @@ def get_args_parser():
     # 
     parser.add_argument('--backbone', type=str, default='vit',
                     help='backbonetype')
+    parser.add_argument('--cluster_method', type=str, default='hierarchy',
+                    help='cluster_method')
     parser.add_argument('--lr', type=float, default=1e-5,
                     help='backbonetype')
     parser.add_argument('--decay', type=float, default=0.1,
@@ -163,7 +165,7 @@ def run():
                 la.append(wsi_dict[i][3])
             print(Counter(la))
             clus_num = len(Counter(la))
-            train_one_wsi(backboneModel, graph_model, criterion, wimg, wdict, idx, total, epoch, clus_num, args)
+            train_one_wsi(backboneModel, graph_model, criterion, wimg, wdict, idx, total, epoch, args)
         #合并patch,并验证
         #每个patch返回{center_fae:[true_label, num]}
 

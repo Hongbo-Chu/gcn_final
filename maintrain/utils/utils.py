@@ -2,6 +2,9 @@ from platform import node
 from tkinter import BROWSE
 from sklearn.cluster import SpectralClustering
 from sklearn.cluster import KMeans
+
+from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
+import numpy as np
 from torch import tensor
 import torch
 import time
@@ -16,7 +19,7 @@ class Cluster:
     """
     based on sklearn: https://scikit-learn.org/stable/modules/clustering.html
     """
-    def __init__(self, node_fea, cluster_num, device, method = "K-means", **kwargs) -> None:
+    def __init__(self, node_fea, device, method = "K-means") -> None:
         """
         inputs: node_features
         
@@ -32,14 +35,14 @@ class Cluster:
         """
         
         # our support cluster methods
-        self.clusters= {'K-means':self.K_means, 'spectral':self.spectral, 'Affinity':self.Affinity}
-        assert method in self.clusters.keys(), "only support K-means, spectral, Affinity"
-        self.cluster_num = cluster_num
+        self.clusters= {'K-means':self.K_means, 'spectral':self.spectral, 'Affinity':self.Affinity, 'hierarchy': self.hierarchy}
+        assert method in self.clusters.keys(), "only support K-means, spectral, Affinity, hierarchy"
+        # self.cluster_num = cluster_num
         self.methods = method
         self.node_fea = node_fea
         self.device =device      
-    def predict(self):
-        result = self.clusters[self.methods]()
+    def predict(self, **kwargs):
+        result = self.clusters[self.methods](**kwargs)
         return result
         
     def K_means(self):
@@ -50,9 +53,25 @@ class Cluster:
 #         return pre_label
         print("use cluster-method: K-means")
         pre_label, cluster_centers = kmeans(self.node_fea, num_clusters=self.cluster_num, distance='euclidean', device=torch.device('cuda:0'))
-
+        pre_label = pre_label.to('cuda:0')
         return pre_label
-    
+
+    def hierarchy(self, **kwargs):
+        threshold_dis = kwargs['threshold_dis']
+        if 'method_h' not in kwargs.keys():
+            method_h = 'ward'
+        else:
+            method_h = kwargs['method_h']
+        self.node_fea = self.node_fea.to("cpu")
+        Z = linkage(self.node_fea, method_h)
+        pre_label = fcluster(Z, threshold_dis, criterion='distance')
+        print(pre_label)
+        clus_num = len(set (pre_label))
+        print(clus_num)
+        #映射到从零开始
+        for i in range(len(pre_label)):
+            pre_label[i] = pre_label[i] - 1
+        return pre_label, clus_num
     
     def spectral(self):
         Scluster = SpectralClustering(n_clusters=2, affinity='nearest_neighbors',n_neighbors=10)# TODO 补充谱聚类参数
@@ -116,9 +135,13 @@ def split2clusters(node_fea, cluster_num, cluster_res, device, cluster_method = 
     node_idx_list = [[] for _ in range(cluster_num)] # 用于存放每一类cluster的标签(int)
     # cluster_res = Cluster(node_fea=node_fea, cluster_num=cluster_num, method=cluster_method, device=device).predict()
     #按照聚类标签分类
+    print(f"test{len(cluster_res)}")
     for idx, clu in enumerate(cluster_res):
-        node_fea_list[clu].append(node_fea[idx].unsqueeze(0))
-        node_idx_list[clu].append(idx)
+        try:
+            node_fea_list[clu].append(node_fea[idx].unsqueeze(0))
+            node_idx_list[clu].append(idx)
+        except:
+            print(f"啥超了啊{idx} {clu} {len(node_fea_list)}")
     return node_fea_list, node_idx_list
 
 def chooseNodeMask(node_fea, cluster_num, mask_rate:list, wsi, device, stable_dic, cluster_res, cluster_method = "K-means"):
