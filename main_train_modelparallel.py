@@ -76,6 +76,15 @@ def get_args_parser():
     return parser
 
 
+def save_acc(path, acc, epoch):
+    save_path = os.path.join(path, 'eval' + '.md')
+    if not os.path.exists(save_path):   
+        with open(save_path, 'a+') as f:
+            title =  '## acc log'+ '\n'
+            f.write(title)
+    with open(save_path, 'a+') as f:
+        f.write(str(epoch) + ": acc=" + str(acc) + '\n')
+
 def crop_wsi(wsi_dict, wsi_tensor, size, drop):
     """
     根据将一个大的wsi分层若干个size大小的小wsi
@@ -171,20 +180,23 @@ def run():
             res_dict_list.append(res_dict)
         #合并patch,并验证
         #每个patch返回{center_fae:[true_label]}
-        merge_mini_patch(res_dict_list, 0.9)
+        a = merge_mini_patch(res_dict_list, 0.9)
+        acc = evaluate(a)
+        print(acc)
+        save_acc(args.save_folder_test, acc, epoch)
             # evaluate_wsi(backboneModel, graph_model, wimg, wdict,epoch, idx,  total, clus_num, args)
             # state = {'backbone': backboneModel.state_dict(), 'gcn': graph_model.state_dict()}
             # save_path = os.path.join(args.weight_folder, 'epoch'+ str(epoch) + 'wsi' + str(43) + 'minipatch' + str(idx) + '.pt')
             # torch.save(state, save_path)
 if __name__ == "__main__":
-    # run()
-    a = torch.randn(10,128)
-    hhh = []
-    for i in range(5):
-        center_dict = {}
-        for i in a:
-            center_dict[i] = torch.randint(10, (100,))
-        hhh.append(center_dict)
-    a = merge_mini_patch(hhh, 2)
-    acc = evaluate(a)
-    print(acc)
+    run()
+    # a = torch.randn(10,128)
+    # hhh = []
+    # for i in range(5):
+    #     center_dict = {}
+    #     for i in a:
+    #         center_dict[i] = torch.randint(10, (100,))
+    #     hhh.append(center_dict)
+    # a = merge_mini_patch(hhh, 2)
+    # acc = evaluate(a)
+    # print(acc)
