@@ -17,6 +17,7 @@ from maintrain.models.gcn import graph_mlp as g_mlp
 from trainengine_modelparallel import train_one_wsi
 from reduce_backbone import build_model
 from maintrain.models.loss import myloss
+from maintrain.utils.utils import merge_mini_patch, evaluate
 from evaluate import evaluate_wsi
 
 
@@ -158,6 +159,7 @@ def run():
         wsi_img = torch.load(img_load_path)
         wsi_dict =  dict(np.load(dict_load_path, allow_pickle='TRUE').item())
         dict_crop, img_crop, total = crop_wsi(wsi_dict, wsi_img, args.batch_size, 0.5)
+        res_dict_list = []
         for idx, (wdict, wimg) in enumerate(zip(dict_crop, img_crop)):
             print(f"统计一下真实标签数量")
             la = []
@@ -165,13 +167,24 @@ def run():
                 la.append(wsi_dict[i][3])
             print(Counter(la))
             clus_num = len(Counter(la))
-            train_one_wsi(backboneModel, graph_model, criterion, wimg, wdict, idx, total, epoch, args)
+            res_dict = train_one_wsi(backboneModel, graph_model, criterion, wimg, wdict, idx, total, epoch, args)
+            res_dict_list.append(res_dict)
         #合并patch,并验证
-        #每个patch返回{center_fae:[true_label, num]}
-
+        #每个patch返回{center_fae:[true_label]}
+        merge_mini_patch(res_dict_list, 0.9)
             # evaluate_wsi(backboneModel, graph_model, wimg, wdict,epoch, idx,  total, clus_num, args)
             # state = {'backbone': backboneModel.state_dict(), 'gcn': graph_model.state_dict()}
             # save_path = os.path.join(args.weight_folder, 'epoch'+ str(epoch) + 'wsi' + str(43) + 'minipatch' + str(idx) + '.pt')
             # torch.save(state, save_path)
 if __name__ == "__main__":
-    run()
+    # run()
+    a = torch.randn(10,128)
+    hhh = []
+    for i in range(5):
+        center_dict = {}
+        for i in a:
+            center_dict[i] = torch.randint(10, (100,))
+        hhh.append(center_dict)
+    a = merge_mini_patch(hhh, 2)
+    acc = evaluate(a)
+    print(acc)

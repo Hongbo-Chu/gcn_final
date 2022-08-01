@@ -116,6 +116,15 @@ def samesort(list1, list2):
         list1, list2
     """
     return zip(*sorted(zip(list1, list2))) 
+
+def compute_clus_center(node_fea, clus_res):
+    node_fea_list = [[] for _ in range(len(set(clus_res)))]
+    for idx, n in enumerate(node_fea):
+        node_fea_list[clus_res[idx]].append(n)
+    for idx in range(len(node_fea_list)):
+        node_fea_list[idx] = node_fea_list.mean()
+    return node_fea_list
+
     
 
 def split2clusters(node_fea, cluster_num, cluster_res, device, cluster_method = "K-means"):
@@ -349,8 +358,88 @@ def fea2pos(center_fea, edge_fea, center_pos, edge_pos):
     print(f"边缘对齐的点有{len(edge_map)}个")
 
 
+class minipatch:
+    def __init__(self, clus_center_dict, name):
+        """
+        clus_center_dict:{clu_center:[truelabel]}
+        """
+        self.mini_patch_name = name
+        self.clus_center_list = []
+        self.clus_truelabel = [[] for _ in range(len(clus_center_dict))]
+        for idx, k in enumerate(clus_center_dict.keys()):
+            self.clus_center_list.append(k)
+            self.clus_truelabel[idx].extend(clus_center_dict[k])
+        self.clus_num = len(clus_center_dict)
+
+def merge_mini_patch(patches_list, thresholed)-> minipatch:
+    """_summary_
+
+    Args:
+        patches_dict (_type_): {name:center_fea}
+    """
+    def merge(buffer, A:int, B:int, thresholed):
+        #寻找相似度高的
+        temp_center_list = []
+        temp_label_list = []
+        new_name = buffer[-1].mini_patch_name + 1
+        a = buffer[A]
+        b = buffer[B]
+        for i in range(a.clus_num):
+            sim_buffer = []#用于存储a[i]和b的所有相似度，万一有多个阈值以上的
+            for j, _ in enumerate(b.clus_center_list):#这样写可以让内层循环的长度随b变化而变化
+                # similarity = F.pairwise_distance(a.clus_center_list[i], b.clus_center_list[j], p=2)
+                similarity = torch.cosine_similarity(a.clus_center_list[i].unsqueeze(0), b.clus_center_list[j].unsqueeze(0))
+                sim_buffer.append(similarity)
+            print(max(sim_buffer))
+            max_idx = sim_buffer.index(max(sim_buffer))
+            # 大于阈值就融合#取平均
+            if max(sim_buffer) > thresholed:
+                print("合并了捏")
+                avg = (a.clus_center_list[i] + b.clus_center_list[max_idx]) / 2
+                temp_center_list.append(avg)
+                qq = []
+                qq.extend(a.clus_truelabel[i])
+                qq.extend(b.clus_truelabel[max_idx])
+                temp_label_list.append(qq)
+                b.clus_center_list.pop(max_idx)
+                b.clus_truelabel.pop(max_idx)
+            else:
+                temp_center_list.append(a.clus_center_list[i])
+                temp_label_list.append(a.clus_truelabel[i])
+        #最后将b中和a没有相似度的也加进去
+        temp_center_list.extend(b.clus_center_list)
+        for i in b.clus_truelabel:
+            temp_label_list.append(i)
+        buffer.pop(B)
+        buffer.pop(A)
+        res = {}
+        for idx, center in enumerate(temp_center_list):
+            res[center] = temp_label_list[idx]
+        buffer.append(minipatch(res, new_name))
+            
+    minipatchbuffer = []
+    for idx, clu_centers in enumerate(patches_list):
+        minipatchbuffer.append(minipatch(clu_centers, idx))
+    idx = 0
+    count = 0
+    while(len(minipatchbuffer) != 1):
+        print(count)
+        count += 1
+        merge(minipatchbuffer, 0, 1, thresholed)
+    return minipatchbuffer[0]
 
 
+def evaluate(x:minipatch):
+    labels = x.clus_truelabel
+    total_num = 0
+    true_pred = 0
+    for lb in labels:
+        Count_lb = Counter(lb)
+        pre_lb = list(Count_lb.keys())[0]
+        true_pred += Count_lb[pre_lb]
+        total_num += len(lb)
+    acc = true_pred / total_num
+    return acc
 
 # if __name__  == '__main__':
 #     """

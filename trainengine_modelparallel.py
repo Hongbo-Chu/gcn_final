@@ -13,7 +13,7 @@ from time import time
 from reduce_backbone import build_model
 from maintrain.utils.utils import Cluster
 from maintrain.construct_graph import new_graph
-from maintrain.utils.utils import chooseNodeMask, compute_pys_feature, fea2pos, chooseEdgeMask
+from maintrain.utils.utils import chooseNodeMask, compute_pys_feature, fea2pos, chooseEdgeMask, compute_clus_center
 from maintrain.models.gcn import GCN
 from maintrain.utils.fold import fold_dict as fd
 from maintrain.utils.fold import stable_dict as sd 
@@ -186,13 +186,17 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         train_time = int(time() - start)
         save_log(args.log_folder, wsi_name, mini_patch, total, epoch, mask_idx, fold_dic, clu_labe_new, train_time, fea_center, fea_edge, pys_center, pys_edge, loss, big_epoch, acc=None, train=True)
     true_label = []
-    print("start eval")
-    eval_start = time()
     for i in range(len(wsi_dict)):
         true_label.append(int(wsi_dict[i][3]))
-    acc = compute_acc(true_label, clu_labe_new, fold_dic, args)
-    print(f"acc={acc}")
-    eval_time = time() - eval_start
-    save_log_eval(args.save_folder_test, big_epoch, wsi_name, acc, mini_patch, eval_time, epoch, total)
+    clus_centers = compute_clus_center(predict_nodes_detach, clu_labe_new)
+    res_dict = {center:[] for center in clus_centers}
+    for idx, t_label in enumerate(true_label):
+        res_dict[clus_centers[clu_labe_new[idx]]].append(t_label)
+    return res_dict
+    
+    # acc = compute_acc(true_label, clu_labe_new, fold_dic, args)
+    # print(f"acc={acc}")
+    # eval_time = time() - eval_start
+    # save_log_eval(args.save_folder_test, big_epoch, wsi_name, acc, mini_patch, eval_time, epoch, total)
         # save_log(args.log_folder, wsi_name, epoch, clu_label, mask_idx)
         #将这旧的聚类标签删除
