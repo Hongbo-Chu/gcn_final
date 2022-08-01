@@ -152,26 +152,25 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
 
         node_fea_detach = node_fea.clone().detach()#从计算图中剥离
         # node_fea_detach = node_fea_detach.to("cpu")
-        g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, 1, args.device1).init_graph()
+        g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, args.edge_enhance, args.device1).init_graph()
         
         
         
-        clu_label, clus_num = Cluster(node_fea=node_fea_detach, device=args.device1, method=args.cluster_method).predict(threshold_dis=3)
+        clu_label, clus_num = Cluster(node_fea=node_fea_detach, device=args.device1, method=args.cluster_method).predict(threshold_dis=args.heirachi_clus_thres)
         for i in range(len(wsi_dict)):
             wsi_dict[i].append(clu_label[i])
         mask_rates = [args.mask_rate_high, args.mask_rate_mid, args.mask_rate_low]#各个被mask的比例
         mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, clus_num, mask_rates, wsi_dict, args.device1, stable_dic, clu_label)#TODO 检查数量
-        mask_edge_idx = chooseEdgeMask(u_v_pair, clu_label,sort_idx_rst, {"inter":0.1, "inner":0.1, "random":0.1} )#类内半径多一点
+        mask_edge_idx = chooseEdgeMask(u_v_pair, clu_label,sort_idx_rst, {"inter":args.edge_mask_inter, "inner":args.edge_mask_inner, "random": args.edge_mask_random} )#类内半径多一点
         node_fea[mask_idx] = 0
         edge_fea[mask_edge_idx] = 0
         print(f"this epoch mask nodes:{len(mask_idx)}, mask edges: {len(mask_edge_idx)}")
         g = g.to(args.device1)
         edge_fea = edge_fea.to(args.device1)
         node_fea = node_fea.to(args.device1)
-        # print(f"test发发发发发发{node_fea.size()}， {node_fea.device}, {edge_fea.size()}, {edge_fea.device}")
         predict_nodes = gcn(g, node_fea, edge_fea)
 
-        loss = criterion(predict_nodes, clu_label, cluster_center_fea, mask_idx, 0.1, sort_idx_rst)
+        loss = criterion(predict_nodes, clu_label, cluster_center_fea, mask_idx, args.mask_weight, sort_idx_rst)
         # loss = criterion(predict_nodes, node_fea)
         print(f"epoch{[epoch]}, loss is:{[loss]}")
         loss.backward()
@@ -180,10 +179,11 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         pys_center, pys_edge = compute_pys_feature(wsi_dict, args.pos_choose) #计算物理特征
         # fea2pos(fea_center, fea_edge, pys_center, pys_edge)#统计对齐信息并打印
         predict_nodes_detach = predict_nodes.clone().detach()
-        clu_labe_new = Cluster(node_fea=predict_nodes_detach, device='cuda:1', method=args.cluster_method).predict(threshold_dis=3)
+        clu_labe_new, _ = Cluster(node_fea=predict_nodes_detach, device=args.device1, method=args.cluster_method).predict(args.heirachi_clus_thres)
         for i in range(len(wsi_dict)):
             wsi_dict[i].pop(-1)
         train_time = int(time() - start)
+        clus_centers = compute_clus_center(predict_nodes_detach, clu_labe_new)
         save_log(args.log_folder, wsi_name, mini_patch, total, epoch, mask_idx, fold_dic, clu_labe_new, train_time, fea_center, fea_edge, pys_center, pys_edge, loss, big_epoch, acc=None, train=True)
     true_label = []
     for i in range(len(wsi_dict)):
@@ -194,9 +194,3 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         res_dict[clus_centers[clu_labe_new[idx]]].append(t_label)
     return res_dict
     
-    # acc = compute_acc(true_label, clu_labe_new, fold_dic, args)
-    # print(f"acc={acc}")
-    # eval_time = time() - eval_start
-    # save_log_eval(args.save_folder_test, big_epoch, wsi_name, acc, mini_patch, eval_time, epoch, total)
-        # save_log(args.log_folder, wsi_name, epoch, clu_label, mask_idx)
-        #将这旧的聚类标签删除

@@ -289,7 +289,7 @@ class GraphConv(nn.Module):
             temp= (torch.cat([edge_fea_temp[:half_node_num], edge_fea_temp[:half_node_num]]) + torch.cat([edge_fea_temp[half_node_num:], edge_fea_temp[half_node_num:]])) / 2
 
             #然后片段阈值
-            print(f"统计阈值信息 均值：{temp.mean()} 最大值{temp.max()}，最小值{temp.min()}")
+            # print(f"统计阈值信息 均值：{temp.mean()} 最大值{temp.max()}，最小值{temp.min()}")
             # qq = sorted(temp)
             # print(f"70%的值小于{qq[int(len(qq) * 0.7)]}")
             a = int(temp.mean())

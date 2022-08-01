@@ -23,7 +23,12 @@ from evaluate import evaluate_wsi
 
 def get_args_parser():
     parser = argparse.ArgumentParser(description='PyTorch implementation')
-    # 
+    parser.add_argument('--training_wsi', type=str, default="43",
+                        help='which gpu to use if any (default: 0)')
+
+    parser.add_argument('--wsi_folder', type=str, default="/root/autodl-tmp/training_wsi",
+                        help='which gpu to use if any (default: 0)')
+
     parser.add_argument('--device0', type=str, default="cuda:0",
                         help='which gpu to use if any (default: 0)')
     parser.add_argument('--device1', type=str, default="cuda:1",
@@ -58,15 +63,31 @@ def get_args_parser():
     parser.add_argument('--mask_num', type=int, default=10,
                 help='一个wsi加几轮mask')
     parser.add_argument('--mask_rate_high', type=float, default=0.1,
-                help='一个wsi加几轮mask')
+                help='高相似度点mask的比例')
     parser.add_argument('--mask_rate_mid', type=float, default=0.1,
-                help='一个wsi加几轮mask')
+                help='中相似度点mask的比例')
     parser.add_argument('--mask_rate_low', type=float, default=0.1,
-                help='一个wsi加几轮mask')
+                help='低相似度点mask的比例')
     parser.add_argument('--embeding_dim', type=int, default=768,
-                help='一个wsi加几轮mask')
+                help='嵌入维度')
     parser.add_argument('--epoch_per_wsi', type=int, default=10,
                 help='一个wsi整体训练几轮')
+
+    parser.add_argument('--mask_weight', type=float, default=0.1,
+                help='loss中mask被增强的权重')
+    parser.add_argument('--heirachi_clus_thres', type=int, default=10,
+                help='层次聚类中距离的阈值')
+    parser.add_argument('--edge_mask_inner', type=float, default=0.1,
+                help='边mask中类内的比例')
+    parser.add_argument('--edge_mask_inter', type=float, default=0.1,
+                help='边mask类间的比例')
+    parser.add_argument('--edge_mask_random', type=float, default=0.1,
+                help='边mask随机的比例')
+    parser.add_argument('--edge_enhance', type=float, default=1.0,
+                help='对邻居边的增强')
+
+
+    
     parser.add_argument('--log_folder', type=str, default='/root/autodl-tmp/7.26备份/runs/logs',
             help='日志存储文件夹')
     parser.add_argument('--weight_folder', type=str, default='/root/autodl-tmp/7.26备份/runs/weights',
@@ -138,33 +159,13 @@ def run():
     args = get_args_parser()
     args = args.parse_args()
     backboneModel = build_model(args.backbone).to(args.device0)
-    # pretrained_dict  = torch.load('/root/autodl-tmp/mae-multi3/output_pretrain_256/checkpoint-30.pth')
-    # backbone_dict = backboneModel.state_dict()
-    # pretrained_dict  = {key: value for key, value in pretrained_dict.items() if (key in backbone_dict)}
-    # print(pretrained_dict)
+
     graph_model = GCN(in_dim=args.embeding_dim, num_hidden=128, out_dim=args.embeding_dim, num_layers=6, dropout=0,activation="prelu", residual=True,norm=nn.LayerNorm).to(args.device1)
-    # graph_mlp = g_mlp(in_dim=6, hid_dim=16, out_dim = 1).to('cuda:1')
-    # optimizer = optim #.Adam(list(backboneModel.parameters()) + list(graph_model.parameters()) + list(graph_mlp.parameters()), lr=args.lr, weight_decay=args.decay)
     criterion = myloss().to(args.device1)
-    # training_wsis = ['50', '44', '46', '48', '49', '57', '53', '56', '43']
-    training_wsis = ['43']
-    saving_path = '/root/autodl-tmp/training_wsi'
-    # for epoch in range(200):
-    #     for tw in training_wsis:
-    #         img_load_path = os.path.join(saving_path, (tw + '.pt'))
-    #         dict_load_path = os.path.join(saving_path, (tw + '.npy'))
-    #         wsi_img = torch.load(img_load_path)
-    #         wsi_dict =  dict(np.load(dict_load_path, allow_pickle='TRUE').item())
-    #         dict_crop, img_crop, total = crop_wsi(wsi_dict, wsi_img, args.batch_size, 0.5)
-    #         for idx, (wdict, wimg) in enumerate(zip(dict_crop, img_crop)):
-    #             train_one_wsi(backboneModel, graph_model, graph_mlp, criterion, wimg, wdict, idx, total, epoch, args)
-    #             evaluate_wsi(backboneModel, graph_model, graph_mlp, wimg, wdict,epoch, idx,  total, args)
-    #             state = {'backbone': backboneModel.state_dict(), 'graph_mlp': graph_mlp.state_dict(), 'gcn': graph_model.state_dict()}
-    #             save_path = os.path.join(args.weight_folder, 'epoch'+ str(epoch) + 'wsi' + str(tw) + '.pt')
-    #             torch.save(state, save_path)
+
     for epoch in range(200):
-        img_load_path = os.path.join(saving_path, ('43'+ '.pt'))
-        dict_load_path = os.path.join(saving_path, ('43' + '.npy'))
+        img_load_path = os.path.join(args.wsi_folder, (args.training_wsi+ '.pt'))
+        dict_load_path = os.path.join(args.wsi_folder, (args.training_wsi + '.npy'))
         wsi_img = torch.load(img_load_path)
         wsi_dict =  dict(np.load(dict_load_path, allow_pickle='TRUE').item())
         dict_crop, img_crop, total = crop_wsi(wsi_dict, wsi_img, args.batch_size, 0.5)
@@ -182,21 +183,7 @@ def run():
         #每个patch返回{center_fae:[true_label]}
         a = merge_mini_patch(res_dict_list, 0.9)
         acc = evaluate(a)
-        print(acc)
+        print(f"\n acc= {acc}\n")
         save_acc(args.save_folder_test, acc, epoch)
-            # evaluate_wsi(backboneModel, graph_model, wimg, wdict,epoch, idx,  total, clus_num, args)
-            # state = {'backbone': backboneModel.state_dict(), 'gcn': graph_model.state_dict()}
-            # save_path = os.path.join(args.weight_folder, 'epoch'+ str(epoch) + 'wsi' + str(43) + 'minipatch' + str(idx) + '.pt')
-            # torch.save(state, save_path)
 if __name__ == "__main__":
     run()
-    # a = torch.randn(10,128)
-    # hhh = []
-    # for i in range(5):
-    #     center_dict = {}
-    #     for i in a:
-    #         center_dict[i] = torch.randint(10, (100,))
-    #     hhh.append(center_dict)
-    # a = merge_mini_patch(hhh, 2)
-    # acc = evaluate(a)
-    # print(acc)

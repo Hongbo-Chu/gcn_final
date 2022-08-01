@@ -47,7 +47,6 @@ for i in range(len(k)):
 print("下面开始加mask")
 mask_rates = [0.1, 0.1, 0.1]#各个被mask的比例
 print("1")
-print(f"test{wsi_dict[1]}")
 mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, 9, mask_rates, k, "cuda:1", stable_dic)#TODO 检查数量
 print("2")
 mask_edge_idx = chooseEdgeMask(u_v_pair, clu_label,[], {"inter":0.1} )

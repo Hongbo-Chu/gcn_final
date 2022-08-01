@@ -65,9 +65,9 @@ class Cluster:
         self.node_fea = self.node_fea.to("cpu")
         Z = linkage(self.node_fea, method_h)
         pre_label = fcluster(Z, threshold_dis, criterion='distance')
-        print(pre_label)
+        # print(pre_label)
         clus_num = len(set (pre_label))
-        print(clus_num)
+        # print(clus_num)
         #映射到从零开始
         for i in range(len(pre_label)):
             pre_label[i] = pre_label[i] - 1
@@ -118,11 +118,11 @@ def samesort(list1, list2):
     return zip(*sorted(zip(list1, list2))) 
 
 def compute_clus_center(node_fea, clus_res):
-    node_fea_list = [[] for _ in range(len(set(clus_res)))]
+    node_fea_list = [[] for _ in range(len(set(list(clus_res))))]
     for idx, n in enumerate(node_fea):
         node_fea_list[clus_res[idx]].append(n)
     for idx in range(len(node_fea_list)):
-        node_fea_list[idx] = node_fea_list.mean()
+        node_fea_list[idx] = torch.stack(node_fea_list[idx]).mean()
     return node_fea_list
 
     
@@ -144,7 +144,6 @@ def split2clusters(node_fea, cluster_num, cluster_res, device, cluster_method = 
     node_idx_list = [[] for _ in range(cluster_num)] # 用于存放每一类cluster的标签(int)
     # cluster_res = Cluster(node_fea=node_fea, cluster_num=cluster_num, method=cluster_method, device=device).predict()
     #按照聚类标签分类
-    print(f"test{len(cluster_res)}")
     for idx, clu in enumerate(cluster_res):
         try:
             node_fea_list[clu].append(node_fea[idx].unsqueeze(0))
@@ -390,11 +389,9 @@ def merge_mini_patch(patches_list, thresholed)-> minipatch:
                 # similarity = F.pairwise_distance(a.clus_center_list[i], b.clus_center_list[j], p=2)
                 similarity = torch.cosine_similarity(a.clus_center_list[i].unsqueeze(0), b.clus_center_list[j].unsqueeze(0))
                 sim_buffer.append(similarity)
-            print(max(sim_buffer))
             max_idx = sim_buffer.index(max(sim_buffer))
             # 大于阈值就融合#取平均
             if max(sim_buffer) > thresholed:
-                print("合并了捏")
                 avg = (a.clus_center_list[i] + b.clus_center_list[max_idx]) / 2
                 temp_center_list.append(avg)
                 qq = []
@@ -421,10 +418,7 @@ def merge_mini_patch(patches_list, thresholed)-> minipatch:
     for idx, clu_centers in enumerate(patches_list):
         minipatchbuffer.append(minipatch(clu_centers, idx))
     idx = 0
-    count = 0
     while(len(minipatchbuffer) != 1):
-        print(count)
-        count += 1
         merge(minipatchbuffer, 0, 1, thresholed)
     return minipatchbuffer[0]
 
