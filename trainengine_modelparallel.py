@@ -1,28 +1,14 @@
 import torch
-import argparse
-import dgl
-import dgl.function as fn
-import torch
-import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
 import torch.optim as optimizer
-import tqdm
 import os
 from time import time
-from reduce_backbone import build_model
 from maintrain.utils.utils import Cluster
 from maintrain.construct_graph import new_graph
 from maintrain.utils.utils import chooseNodeMask, compute_pys_feature, fea2pos, chooseEdgeMask, compute_clus_center
-from maintrain.models.gcn import GCN
 from maintrain.utils.fold import fold_dict as fd
 from maintrain.utils.fold import stable_dict as sd 
 from maintrain.utils.fold import update_fold_dic
-from maintrain.models.loss import myloss as ml
-from maintrain.models.gcn import graph_mlp as g_mlp
-# from train_engine_mp2 import train_one_wsi
-from reduce_backbone import build_model
-from evaluate import compute_acc, save_log_eval
 
 
 def save_log(save_folder, wsi_name, mini_patch, total, epoch, mask_nodes, fold_dict, labels, time, center_fea, edge_fea, center_pos, edge_pos, loss, big_epoch, acc=None, train=True):

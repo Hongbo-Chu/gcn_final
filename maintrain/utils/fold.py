@@ -64,7 +64,7 @@ class fold_dict:
             node_tobe_fold = []
             for i in re_fold_nodes:
                 node_tobe_fold.extend(self.fold_dict[i])
-                node_tobe_fold.extend(i)
+                node_tobe_fold.extend([i])
                 ##同时旧的折叠字典中去除这些点
                 self.fold_dict.pop(i)
             center_node, center_node_fea = self.compute_fold_id(node_tobe_fold, node_fea)
