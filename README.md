@@ -248,6 +248,7 @@ for i, rate in enumerate(mask_rate):
     ```python
         return center_node, clus_center
     ```
+***
 
 * **add_element():**
     
@@ -463,6 +464,7 @@ Args:
             final_loss = final_loss + L2_dist[i]
     return final_loss
 ```
+***
 ### inter_cluster_loss
 Args:
 * node_fea (_type_): 节点特征
@@ -508,6 +510,88 @@ Args:
 ```pyhton
     L2_dist += F.pairwise_distance(final_i.unsqueeze(0), final_j.unsqueeze(0), p=2)
 ```
+
+# 5. trainengine_modelparallel.py
+## freeze & unfreeze
+### **usage:**
+用于冻结backbone的梯度，使其不进行训练
+### **args:**
+* 三个model
+* optimizer
+### **returns**
+更新后的optimizer。
+### 实现细节：
+* 将`bakckbone`的所有参数的`require_grade`设置为`False`  
+* 将optimizer中backbonde的参数去掉
+***
+
+## train_one_wsi
+
+### **usage:**
+一个wsi的一个大patch的一组训练
+### **实现细节**
+1. 首先初始化折叠字典，并将模型设置为训练模式
+```python
+    backbone.train()
+    gcn.train()
+    wsi_name = wsi_dict[0][0].split("_")[0]
+    fold_dic = fd()#用于记录被折叠的点
+    stable_dic = sd()#用于记录稳定的点
+```
+2. 根据超参数中的每个大patch的训练数量设置循环
+```python
+for epoch in range(args.epoch_per_wsi):
+```
+3. 先根据当前轮数判断是否需要冻结backbone。
+```python
+if (epoch+1) % 3 == 0:
+    optimizer = freeze(backbone, gcn, graph_mlp, args)
+else:
+    optimizer = unfreeze(backbone, gcn, graph_mlp, args)
+```
+4. 计算node_fea，随后创建一个从计算图中剥离的副本用于进行edge_fea的计算。并跟更新折叠字典，并根据折叠字典将折叠后的node_fae进行更新。(第一轮字典为空，不进行更新)
+```python
+    node_fea = backbone(input_img)
+    node_fea_detach = node_fea.clone().detach()#从计算图中剥离
+    update_fold_dic(stable_dic, fold_dic, node_fea_detach)
+    for k in fold_dic.fold_dict.keys():
+        node_fea[k] = fold_dic.fold_node_fea[k]
+```
+5. 建图，算聚类的结果，用于选择mask,并将算出来的聚类结果添加到wsi_dict中，方便后边函数使用。
+```python
+    g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, args.edge_enhance, graph_mlp, args.device1).init_graph()     
+    clu_label, clus_num = Cluster(node_fea=node_fea_detach, device=args.device1, method=args.cluster_method).predict(threshold_dis=args.heirachi_clus_thres)
+    for i in range(len(wsi_dict)):
+        wsi_dict[i].append(clu_label[i])
+```
+6. 根据`mask_rate`计算`node_mask`和`edge_mask`
+```python
+    mask_rates = [args.mask_rate_high, args.mask_rate_mid, args.mask_rate_low]#各个被mask的比例
+    mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, clus_num, mask_rates, wsi_dict, args.device1, stable_dic, clu_label)#TODO 检查数量
+    mask_edge_idx = chooseEdgeMask(u_v_pair, clu_label,sort_idx_rst, {"inter":args.edge_mask_inter, "inner":args.edge_mask_inner, "random": args.edge_mask_random} )#类内半径多一点
+    node_fea[mask_idx] = 0
+    edge_fea[mask_edge_idx] = 0
+```
+7. 模型并行，将`graph`和`node_fea`, `edge_fea`放到`cuda:1`上面。然后过`gcn`,并计算`loss`，进行梯度更新。
+```python
+    g = g.to(args.device1)
+    edge_fea = edge_fea.to(args.device1)
+    node_fea = node_fea.to(args.device1)
+    predict_nodes = gcn(g, node_fea, edge_fea)
+    loss = criterion(predict_nodes, clu_label, cluster_center_fea, mask_idx, args.mask_weight, sort_idx_rst)
+    loss.backward()
+    optimizer.step()
+    optimizer.zero_grad(
+```
+8. 使用更新后的特征重新聚类。
+```python
+    pys_center, pys_edge = compute_pys_feature(wsi_dict, args.pos_choose) #计算物理特征
+    # fea2pos(fea_center, fea_edge, pys_center, pys_edge)#统计对齐信息并打印
+    predict_nodes_detach = predict_nodes.clone().detach()
+    clu_labe_new, _ = Cluster(node_fea=predict_nodes_detach, device=args.device1, method=args.cluster_method).predict(threshold_dis=args.heirachi_clus_thres)
+    for i in range(len(wsi_dict)):
+```
+
 
     
         
