@@ -159,7 +159,7 @@ def run():
     args = get_args_parser()
     args = args.parse_args()
     backboneModel = build_model(args.backbone).to(args.device0)
-
+    graph_mlp = g_mlp(in_dim=6, hid_dim=16, out_dim = 1).to(args.device1)
     graph_model = GCN(in_dim=args.embeding_dim, num_hidden=128, out_dim=args.embeding_dim, num_layers=6, dropout=0,activation="prelu", residual=True,norm=nn.LayerNorm).to(args.device1)
     criterion = myloss().to(args.device1)
 
@@ -177,7 +177,7 @@ def run():
                 la.append(wsi_dict[i][3])
             print(Counter(la))
             clus_num = len(Counter(la))
-            res_dict = train_one_wsi(backboneModel, graph_model, criterion, wimg, wdict, idx, total, epoch, args)
+            res_dict = train_one_wsi(backboneModel, graph_model, graph_mlp, criterion, wimg, wdict, idx, total, epoch, args)
             res_dict_list.append(res_dict)
         #合并patch,并验证
         #每个patch返回{center_fae:[true_label]}

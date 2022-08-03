@@ -86,7 +86,7 @@ def save_log(save_folder, wsi_name, mini_patch, total, epoch, mask_nodes, fold_d
 
 
 
-def freeze(backbone, graph_model, args):
+def freeze(backbone, graph_model, graph_mlp, args):
     """用于冻结模型的参数
 
     Args:
@@ -99,9 +99,9 @@ def freeze(backbone, graph_model, args):
     #告诉优化器，哪些需要更新，那些不需要，这一步至关重要
     #filter() 函数用于过滤序列，过滤掉不符合条件的元素，返回由符合条件元素组成的新列表
     # optimizer.Adam(filter(lambda p: p.requires_grad, backbone.parameters()), lr=args.lr)
-    return optimizer.Adam(list(graph_model.parameters()), lr=args.lr, weight_decay=args.decay)
+    return optimizer.Adam(list(graph_model.parameters()) + list(graph_mlp.parameters()), lr=args.lr, weight_decay=args.decay)
 
-def unfreeze(backbone, graph_model, args):
+def unfreeze(backbone, graph_model, graph_mlp, args):
     """解冻模型的参数
 
     Args:
@@ -110,11 +110,12 @@ def unfreeze(backbone, graph_model, args):
     for child in backbone.children():
         for param in child.parameters():
             param.requires_grad = True
-    return optimizer.Adam(list(backbone.parameters()) + list(graph_model.parameters()), lr=args.lr, weight_decay=args.decay)
+    return optimizer.Adam(list(backbone.parameters()) + list(graph_model.parameters()) + list(graph_mlp.parameters()), lr=args.lr, weight_decay=args.decay)
 
 
 
 def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module, 
+                    graph_mlp,
                     criterion:torch.nn.Module,
                     wsi_img,
                     wsi_dict,
@@ -127,7 +128,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
     backbone.train()
     gcn.train()
     wsi_name = wsi_dict[0][0].split("_")[0]
-    fold_dic = fd(args.batch_size)#用于记录被折叠的点
+    fold_dic = fd()#用于记录被折叠的点
     stable_dic = sd()#用于记录稳定的点
     for epoch in range(args.epoch_per_wsi):
         start = time()
@@ -135,24 +136,20 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         input_img = wsi_img.to(args.device0)
 
         if (epoch+1) % 3 == 0:
-            optimizer = freeze(backbone, gcn, args)
+            optimizer = freeze(backbone, gcn, graph_mlp, args)
         else:
-            optimizer = unfreeze(backbone, gcn, args)
+            optimizer = unfreeze(backbone, gcn, graph_mlp, args)
 
         #training
         node_fea = backbone(input_img)
-        update_fold_dic(stable_dic, fold_dic)
-         #先将折叠中心的node_fea添加
-        for k in fold_dic.fold_dict.keys():# 不存在空的折叠点
-            node_fea_k = torch.zeros(768).to(args.device0)
-            for node in fold_dic.fold_dict[k]:
-                node_fea_k += node_fea[node]
-            node_fea_k = node_fea_k / len(fold_dic.fold_dict[k])
-            node_fea = torch.cat([node_fea, node_fea_k.unsqueeze(0)], dim = 0)
-
         node_fea_detach = node_fea.clone().detach()#从计算图中剥离
+        update_fold_dic(stable_dic, fold_dic, node_fea_detach)
+         #先将折叠中心的node_fea变更
+        for k in fold_dic.fold_dict.keys():
+            node_fea[k] = fold_dic.fold_node_fea[k]
+
         # node_fea_detach = node_fea_detach.to("cpu")
-        g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, args.edge_enhance, args.device1).init_graph()
+        g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, args.edge_enhance, graph_mlp, args.device1).init_graph()
         
         
         
@@ -179,7 +176,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         pys_center, pys_edge = compute_pys_feature(wsi_dict, args.pos_choose) #计算物理特征
         # fea2pos(fea_center, fea_edge, pys_center, pys_edge)#统计对齐信息并打印
         predict_nodes_detach = predict_nodes.clone().detach()
-        clu_labe_new, _ = Cluster(node_fea=predict_nodes_detach, device=args.device1, method=args.cluster_method).predict(args.heirachi_clus_thres)
+        clu_labe_new, _ = Cluster(node_fea=predict_nodes_detach, device=args.device1, method=args.cluster_method).predict(threshold_dis=args.heirachi_clus_thres)
         for i in range(len(wsi_dict)):
             wsi_dict[i].pop(-1)
         train_time = int(time() - start)

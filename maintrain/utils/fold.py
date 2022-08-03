@@ -22,6 +22,7 @@ class fold_dict:
             next_id: 下一个新产生的被折叠的点的id
         """
         self.fold_dict = {}
+        self.fold_node_fea = {}
 
     def compute_fold_id(self,nodes_id, node_fea):
         """
@@ -36,9 +37,9 @@ class fold_dict:
         cc = torch.stack([clus_center for _ in range(len(nodes_id))])
         dis = F.pairwise_distance(cc.unsqueeze(0), node_fea_toupdate.unsqueeze(0), p=2)
         dis_list = list(dis)
-        max_idx = dis.index(max(dis_list))
+        max_idx = dis_list.index(max(dis_list))
         center_node = nodes_id[max_idx]
-        return center_node
+        return center_node, clus_center
 
 
 
@@ -56,8 +57,9 @@ class fold_dict:
         re_fold_nodes = set(new_node) & set(self.fold_dict.keys())
         if len(re_fold_nodes) == 0: #新产生
             #计算折叠后的点的新id，从所有点中选出一个相似度最大的点
-            center_node = self.compute_fold_id(nn, node_fea)
+            center_node, center_node_fea = self.compute_fold_id(nn, node_fea)
             self.fold_dict[center_node] = nn
+            self.fold_node_fea[center_node] = center_node_fea
         else: #若果新折叠的点中包含已经被折叠的点
             node_tobe_fold = []
             for i in re_fold_nodes:
@@ -65,8 +67,9 @@ class fold_dict:
                 node_tobe_fold.extend(i)
                 ##同时旧的折叠字典中去除这些点
                 self.fold_dict.pop(i)
-            center_node = self.compute_fold_id(node_tobe_fold, node_fea)
+            center_node, center_node_fea = self.compute_fold_id(node_tobe_fold, node_fea)
             self.fold_dict[center_node] = node_tobe_fold
+            self.fold_node_fea[center_node] = center_node_fea
 class stable_dict:
     """format
         {clus_label:[nodes]}
@@ -103,7 +106,7 @@ class stable_dict:
         return returnlist
 
 
-def update_fold_dic(stable_dic: stable_dict, fold_dic: fold_dict):
+def update_fold_dic(stable_dic: stable_dict, fold_dic: fold_dict, node_fea):
     """根据stble_dic来更新fold_dic
         更新完成后stable_dic清零
     """
@@ -111,5 +114,5 @@ def update_fold_dic(stable_dic: stable_dict, fold_dic: fold_dict):
     print( stable_dic.stable_dic)
     for sta in stable_dic.stable_dic.keys():
         if len(stable_dic.stable_dic[sta]) >= 2:
-            fold_dic.add_element(stable_dic.stable_dic[sta])
+            fold_dic.add_element(stable_dic.stable_dic[sta], node_fea)
     stable_dic.reset()

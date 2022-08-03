@@ -12,7 +12,7 @@
     * ### construct_graph.py
         所有与建图有关的函数都在这里面
 
-# utils.py
+# 1. utils.py
 ##  **chooseNodeMask**
 ### **usage**
     用于选择要添加mask的节点
@@ -81,6 +81,7 @@ for i, rate in enumerate(mask_rate):
                 mid_pre = mid - (mask_num) // 2
                 mask_node_idx.extend(sorted_idex[mid_pre:mid_pre + mask_num])
 ```
+***
 
 ## **chooseEdgeMask**
 ### **usage**
@@ -135,7 +136,7 @@ for i, rate in enumerate(mask_rate):
                 mask_edge_pair.extend(temp2[i])
                 count -= 1
 ```
-
+***
 ## **neighber_type**
 ### **usage**
 用于判断一个节点的周围n圈邻居的种类(聚类得出的种类)
@@ -149,6 +150,7 @@ for i, rate in enumerate(mask_rate):
 ### **算法流程**
     根据一个点的物理坐标，去遍历他的周围一圈邻居，看他周围一圈的邻居是否在wsi_dict当中，若在便查询其聚类的标签。
 
+***
 ## **compute_pys_feature**
 ### **arg:**
     wsi (_type_): 建图时候使用的wsi结构体， {idx: (name, (x, y), ndoe_fea, (x_true, y_true), label)}
@@ -166,7 +168,7 @@ for i, rate in enumerate(mask_rate):
 ```
 
 
-
+***
 ## **class minipatch**
 ### **usage**
     结构体，用于最后大patch合并用
@@ -218,11 +220,295 @@ for i, rate in enumerate(mask_rate):
 ```
 
 
-# fold.py
+# 2. fold.py
 ## **class fold_dict**
 ### **usage**
     用于记录在过程中所有被折叠的点的index。
 ### **methods:**
-    add_element():
-        负责向字典中加与被折叠的点添加之前要判断一下有无已经是折叠后的新点，若是的话就要在新点下面添加,同时将旧的点放到新的里面，并置空，若不是则创建新点,在创建图的时候只要判断新加的点是否为空就行了，为空的话就不用添加边了。
+* **compute_fold_id**
+
+    根据要折叠的所有点的node_fea计算这些点折叠后应该落在哪个实体的点上面
+    1. 先计算出所有点的聚类中心(不一定是一个实际的点)
+    ```python
+        node_fea_toupdate = []
+        for idx in nodes_id:
+            node_fea_toupdate.append(node_fea[idx])
+        node_fea_toupdate = torch.stack(node_fea_toupdate)
+        clus_center = node_fea_toupdate.mean(dim=0)
+    ```
+    2. 然后从实际的点当中找出与这个点相似度最高的实体点
+    ```python
+        cc = torch.stack([clus_center for _ in range(len(nodes_id))])
+        dis = F.pairwise_distance(cc.unsqueeze(0), node_fea_toupdate.unsqueeze(0), p=2)
+        dis_list = list(dis)
+        max_idx = dis_list.index(max(dis_list))
+        center_node = nodes_id[max_idx]
+    ```
+    3. 最后返回实际点的物理坐标，和聚类中心的node_fea,并在后面用这个新算出来的node_fea更新那个近似的实体的中心点
+    ```python
+        return center_node, clus_center
+    ```
+
+* **add_element():**
     
+    用于向fold_dict当中添加元素
+
+    新版本:折叠后的新点不再是新产生的，而是已有的点中和他相似度最高的点。
+
+    1. 上来先判断要添加的点中有没有已经是被折叠的点(通过python集合的方式)
+    ```python
+        re_fold_nodes = set(new_node) & set(self.fold_dict.keys()) 
+    ``` 
+    2. 如果没有，就不涉及到合并，直接将所有的点添加到折叠字典当中去。
+    ```python
+        if len(re_fold_nodes) == 0: #新产生
+        #计算折叠后的点的新id，从所有点中选出一个相似度最大的点
+        center_node, center_node_fea = self.compute_fold_id(nn, node_fea) # 计算出最近似的实体的点，以及新的折叠中心的node_fea
+        self.fold_dict[center_node] = nn
+        self.fold_node_fea[center_node] = center_node_fea
+    ```
+    3. 如果有，就要把旧的折叠的所有的点清空，然后添加到新的折叠点的集合当中，并重新计算折叠中心。
+    ```python
+        else: #若果新折叠的点中包含已经被折叠的点
+        node_tobe_fold = []
+        for i in re_fold_nodes: # 先将折叠字典中旧的点全部添加到临时变量中去，用于后续重新计算新的折叠中心
+            node_tobe_fold.extend(self.fold_dict[i])
+            node_tobe_fold.extend(i)
+            ##同时旧的折叠字典中去除这些点
+            self.fold_dict.pop(i)
+        center_node, center_node_fea = self.compute_fold_id(node_tobe_fold, node_fea)
+        self.fold_dict[center_node] = node_tobe_fold
+        self.fold_node_fea[center_node] = center_node_fea
+    ```
+***
+## **update_fold_dic**
+### **usage**
+    根据stable_dict来更新fold_dict,更新完成后stable_dict清零
+### **args**
+    stable_dic: 每轮更新后稳定的点
+    fold_dic: 折叠字典
+    node_fea：
+    参数的更新不通过返回，而是通过直接传参
+### **returns**
+    None: 通过直接传参
+
+### **实现细节**
+遍历所有的稳定字典，将每一个稳定字典加入折叠字典中
+```python
+     for sta in stable_dic.stable_dic.keys():
+        if len(stable_dic.stable_dic[sta]) >= 2:
+            fold_dic.add_element(stable_dic.stable_dic[sta], node_fea)
+```
+
+# 3. construct_graph.py
+
+## **class new_graph**
+### **usage:**
+    根据物理信息和特征信息来创建图。
+### **属性**
+* self.edge_mlp: 用于将javed的多维的edge_fea映射到一维上去，方便后续阈值，拼接操作
+* self.wsi_di：用于记录输入的wsi的基本信息，包括物理坐标，种类等等。
+* self.fold_dict：一直维护的折叠字典
+* self.d：javed公式中的d
+* self.node_num：所有点的数量
+* self.node_fea：点的特征
+* self.edge_enhance：增强邻居节点的值
+
+### **methods**
+1.  **init_edge**
+
+    usage: 用于初始化边的权重，参考javed方法
+
+    returns: 任意两点之间的边的权重的矩阵
+    
+    实现细节：
+    1. 首先参考javed公式，算出f_ij, 和d_ij。
+    ```PYTHON
+        h = w = 128
+        f_ij = L2_dist(self.node_fea, self.node_fea)#公式中||f_i - f_j||_2
+        d_ij = L2_dist(self.d, self.d)#公式中d_ij
+        px =  self.d.permute(1, 0)[0] # 所有x坐标
+        px1 = px.expand(px.size(0), px.size(0))
+        px2 = px1.permute(1, 0)
+        py = self.d.permute(1, 0 )[1] # 所有的y坐标
+        py1 = py.expand(py.size(0), py.size(0))
+        py2 = py1.permute(1, 0) # 
+        p_ij1 = ((px1 - px2) / h)
+        p_ij2 = ((py1 - py2) / h)
+        #这里需要每个分量都是N * N
+        self.node_num = len(self.node_fea)
+        z = torch.zeros_like(f_ij).to(self.device)
+        # print(f"各种大小{f_ij.size()} {p_ij1.size()} {p_ij2.size()} {d_ij.size()} {z.size()}")
+        edge_fea = torch.stack([f_ij, p_ij1, p_ij2, z, z, d_ij])
+    ```
+    2. 使用permute操作将edge_fea转为 [n, n, edge_fea]，这样edge_fea[i][j]就代表了这两点之间的边的权重
+    ```python
+        edge_fea = edge_fea.permute(2, 1, 0)
+    ```
+    3. 由于建的是全连接图，通过for循环的形式将[n, n, edge_fea]转化为[n*n, edge_fea]
+    ```python 
+        for i in tqdm(range(self.node_num)): #全连接图
+        for j in range(self.node_num):
+            e_ij.append(edge_fea[i][j])
+        e_ij = torch.stack(e_ij)
+        return e_ij
+    ```
+2. **init_graph**
+
+    usage: 用于初始化整个图。
+
+    returns:
+    
+    * dgl.graph:下面计算用的图
+    * (u, v): 源节点和目标节点对
+    * ee：边的特征
+
+    算法细节：
+
+    1. 首先调用 `init_edge`方法生成边的权重，并使用 `edge_mlp`将其映射为一维，方便后续的计算
+    ```python
+        e_fea = self.init_edge()
+        e_fea = self.edge_mlp(e_fea).view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
+    ```
+    2. 然后为了减少边的连接数量，使用阈值来卡掉一部分关系不那么近的边。
+        阈值的设定就以所有的edge_fea为基准上下浮动。
+    ```python
+        threshold = e_fea.mea()
+        threshold_e = torch.threshold(e_fea, threshold, 0)#size() = n,n
+    ```
+    3. 接下来对所有的邻居边进行增强
+    ```python
+        for node in range(len(self.wsi_dic)):
+            temp = torch.zeros(1, self.node_num)
+            neighbor_edge = neighbor_idx(node, self.wsi_dic, 1)
+            #折叠的点不加强
+            neighbor_edge.extend([0 for _ in range(len(list(self.fold_dict.keys())))])
+            temp[0][neighbor_edge] = self.edge_enhance
+            edge_enhance.append(temp)
+    ```
+    4. 下面根据算出来的edge_fea进行建图。建图建一半就行，另一半调用dgl接口对称生成
+        1. 先统计一下所有被折叠的点，以便在后面把它去掉
+        ```PYTHON
+            fold_nodes = []
+            for i in self.fold_dict.keys():
+                fold_nodes.extend(self.fold_dict[i])
+        ```
+        2. 然后遍历建图。在建图的时候判断阈值不等于0，同时要记录所有已经被折叠点出现的位置，在后面去除这些点
+        ```python
+            for i in tqdm(range(self.node_num)): #全连接图
+                for j in range(i+1 ,self.node_num):
+                    if threshold_e[i][j] != 0 and i != j:#判断在阈值之内可以，且无自环
+                        if i in fold_nodes or j in fold_nodes:#记录被折叠点的坐标，因为后面添加的点的连接要根据它都包含了哪些点决定
+                            count_list.append(count)#不用记录具体信息，因为反正这些点都要去掉
+                        u.append(i)
+                        v.append(j)
+                        ee.append((threshold_e[i][j]).unsqueeze(0))
+                        count += 1
+        ```
+        3. 去除所有已经被折叠的点。这里按照idx倒叙去除，这样在去除后面的同时前面的idx不会被改变
+        ```python
+            count_list.reverse()
+            for dele in count_list:
+                ee.pop(dele)
+                u.pop(dele)
+                v.pop(dele)
+            temp_graph = dgl.graph((u, v))
+            self.graph = dgl.add_reverse_edges(temp_graph).to(self.device)
+        ```
+        4. 最后建双向图
+        ```python
+            temp_graph = dgl.graph((u, v))
+            self.graph = dgl.add_reverse_edges(temp_graph).to(self.device)
+            ee = torch.cat(ee, dim=0).unsqueeze(1)#最终的edge_fea，是将那些为0的边都去掉了
+            ee = torch.cat([ee,ee], dim =0)
+            return self.graph, (u, v), ee
+        ```
+
+# 4. loss.py
+## **class my_loss**
+
+### inner_cluster_loss
+Args:
+
+* node_fea (tensor): 更新后的node_fea，require_grade=True
+* clu_label (_type_): 每个点的聚类标签
+* center_fea (_type_): 几个聚类中心的向量,list of tensor的形式
+* mask_nodes:加了mask的点
+* mask_weight:对于mask点的聚类权重
+
+实现细节：
+1. 先建立空的列表用于存储每一类的每点和聚类中心的距离、
+```python
+    L2_dist = [torch.tensor([]).to("cuda:1") for _ in range(len(center_fea))]
+    final_loss = torch.tensor(0).to("cuda:1")
+    # print(f"loss检测{node_fea.size()}, {len(center_fea)}, {len(clu_label)}")
+    center_fea = torch.stack(center_fea).to("cuda:1")
+```
+2. 根据聚类的结果计算每一类中的每一个点到该类聚类中心的距离
+```python
+    for i in range(len(node_fea)):
+                L2_dist[clu_label[i]] = torch.cat([L2_dist[clu_label[i]], (F.pairwise_distance(node_fea[i].unsqueeze(0), center_fea[clu_label[i]].unsqueeze(0), p=2))])
+                if  i in mask_nodes:
+                    L2_dist[clu_label[i]] = torch.cat([L2_dist[clu_label[i]],  (1 + mask_weight) * F.pairwise_distance(node_fea[i].unsqueeze(0), center_fea[clu_label[i]].unsqueeze(0), p=2)])
+```
+3. 对每一类的距离进行归一化操作
+```python
+    for i in range(len(L2_dist)):
+        if len(L2_dist[i]) != 0:
+            L2_dis_min = L2_dist[i].min()   
+            L2_dist[i] = L2_dist[i] - L2_dis_min
+            L2_dist_max = L2_dist[i].max()
+            L2_dist[i] = L2_dist[i] / L2_dist_max
+            L2_dist[i] = L2_dist[i].mean()
+            final_loss = final_loss + L2_dist[i]
+    return final_loss
+```
+### inter_cluster_loss
+Args:
+* node_fea (_type_): 节点特征
+* clu_label (_type_): 不需要了现在，都包含在sort_idx_rst中了。
+* center_fea (_type_): 每一类的聚类中心
+* sort_idx_rst (_type_):每类的相似度排序结果[[],[],[]....]
+* mask_nodes (_type_): 加了mask的点
+* mask_weight (_type_): 对于mask点的聚类权重
+* center_fea: 每一类的聚类中心list of tensor, [dim]
+
+实现细节：
+思路就是两层for循环遍历所有的类，两两算类间loss
+1. 先将每一类中的所有点的`node_fea`找出来，用于后面计算距离用
+```python
+    edgenode_i_idx = sort_idx_rst[i][-int((len(sort_idx_rst[i])) * 0.1):]
+    edgenode_j_idx = sort_idx_rst[j][-int((len(sort_idx_rst[j])) * 0.1):]
+    edgenode_fea_i = [node_fea[i] for i in edgenode_i_idx]
+    edgenode_fea_j = [node_fea[j] for j in edgenode_j_idx]
+```
+2. 然后计算这些点与两个高维球两线的pairwise_cos角度
+```python
+    t = (center_fea[i] - center_fea[j]).unsqueeze(0)
+    cos_i = [F.cosine_similarity(t, k.unsqueeze(0)) for k in edgenode_fea_i]
+    cos_j = [F.cosine_similarity(t, w.unsqueeze(0)) for w in edgenode_fea_j]
+```
+3. 找出两个高维球之间符合条件的点。
+    * 为了防止没有点的cos角度在输入的阈值之内，这里采用了自适应的阈值选择方法。`th_i`和`th_j`就是选择的阈值,是根据所算出来的所有的cos角进行排序。
+    * 然后将所有的符合条件的点的`ndoe_fea`挑出来
+```python
+    sorted_cos_i = sorted(cos_i)
+    th_i = sorted_cos_i[int(len(sorted_cos_i) * 0.05)]
+    sorted_cos_j = sorted(cos_j)
+    th_j = sorted_cos_j[int(len(sorted_cos_j) * 0.05)]
+    for k, cosval in enumerate(cos_i):
+        if cosval > th_i:
+            final_i.append(edgenode_fea_i[k].unsqueeze(0))
+    for q, cosval in enumerate(cos_j):
+        if cosval > th_j:
+            final_j.append(edgenode_fea_j[q].unsqueeze(0))
+
+```
+4. 计算并累计所有的类间距离
+```pyhton
+    L2_dist += F.pairwise_distance(final_i.unsqueeze(0), final_j.unsqueeze(0), p=2)
+```
+
+    
+        
+

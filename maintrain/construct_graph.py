@@ -108,7 +108,7 @@ def L2_dist(x, y):
 
 
 class new_graph:
-    def __init__(self, wsi, fold_dict, node_fea, edge_enhance, device) -> None:
+    def __init__(self, wsi, fold_dict, node_fea, edge_enhance, graph_mlp, device) -> None:
         """根据node_fea和读取的文件名建图
          Args:
             wsi (_type_): 格式：{idx: name, (x_t, y_t), (x, y)}
@@ -116,11 +116,15 @@ class new_graph:
             graph_mlp:用于边的特征映射的mlp
         """
         self.device = device
+        self.edge_mlp = graph_mlp
         self.wsi_dic = wsi
         self.fold_dict = fold_dict.fold_dict
+        self.d = [] #javed 公式中的d
+        for idx in range(len(wsi)):
+            self.d.append(torch.tensor(list(wsi[idx][1])).float().unsqueeze(0))
+        self.d = torch.cat(self.d, dim = 0).to(self.device)
         self.node_fea = node_fea
         self.node_num = len(self.node_fea)
-#         self.d = self.d.to(self.device)
         self.node_fea = self.node_fea.to(self.device)
         self.edge_enhance = edge_enhance
 
@@ -177,8 +181,8 @@ class new_graph:
             temp[0][neighbor_edge] = self.edge_enhance
             edge_enhance.append(temp)
         #TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!被折叠的边要不要增强
-        for ii in range(len(list(self.fold_dict.keys()))):
-            edge_enhance.append(torch.zeros(1, self.node_num))
+        # for ii in range(len(list(self.fold_dict.keys()))):
+        #     edge_enhance.append(torch.zeros(1, self.node_num))
         #一个n x n的tensor其中，只有对应位置的值为1
         edge_enhance = torch.cat(edge_enhance, dim=0).to(self.device)
         # print(f"用于边增强的矩阵的形状{edge_enhance.size()}")
@@ -213,7 +217,7 @@ class new_graph:
                 #             dest.append(v[idx]) 
                 # dest = dict(Counter(dest))
                 # for d in dest.keys():
-                #     weight = dest[d] #TODO 用相似度算
+                #     weight = dest[d]
                 #     u.append(fd)
                 #     v.append(d)
                 #     ee.append(weight)

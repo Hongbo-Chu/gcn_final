@@ -66,7 +66,6 @@ class myloss(torch.nn.Module):
                     
                 t = t.to("cuda:1")
                 #找出边缘点，定义后10%的点为边缘点
-
                 edgenode_i_idx = sort_idx_rst[i][-int((len(sort_idx_rst[i])) * 0.1):]
                 edgenode_j_idx = sort_idx_rst[j][-int((len(sort_idx_rst[j])) * 0.1):]
                 edgenode_fea_i = [node_fea[i] for i in edgenode_i_idx]
