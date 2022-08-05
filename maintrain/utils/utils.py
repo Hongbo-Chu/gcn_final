@@ -15,6 +15,7 @@ from tqdm import tqdm
 from kmeans_pytorch import kmeans
 from sklearn.cluster import KMeans
 
+from matplotlib import pyplot as plt
 class Cluster:
     """
     based on sklearn: https://scikit-learn.org/stable/modules/clustering.html
@@ -64,6 +65,19 @@ class Cluster:
             method_h = kwargs['method_h']
         self.node_fea = self.node_fea.to("cpu")
         Z = linkage(self.node_fea, method_h)
+        q = sorted(Z[:,2])
+        thres = q[int(len(q)*0.99)]
+        pre_label = fcluster(Z, thres, criterion='distance')
+        print(Z[:,2].mean())
+        print(f"sss{len(set(pre_label))}")
+        # plt.figure(figsize=(50, 10))
+        # plt.title('Hierarchical Clustering Dendrogram')
+        # plt.xlabel('sample index')
+        # plt.ylabel('distance')
+        # dendrogram(Z, leaf_rotation=90., leaf_font_size=8.)
+        # f = plt.gcf()  #获取当前图像
+        # f.savefig(r'bb.png')
+        assert False
         pre_label = fcluster(Z, threshold_dis, criterion='distance')
         # print(pre_label)
         clus_num = len(set (pre_label))
