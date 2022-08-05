@@ -135,7 +135,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
             node_fea[k] = fold_dic.fold_node_fea[k]
 
         # node_fea_detach = node_fea_detach.to("cpu")
-        g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, args.edge_enhance, graph_mlp, args.device1).init_graph()
+        g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, args.edge_enhance, graph_mlp, args.device1).init_graph(args)
         
         
         

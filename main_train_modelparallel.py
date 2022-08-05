@@ -33,7 +33,7 @@ def get_args_parser():
                         help='which gpu to use if any (default: 0)')
     parser.add_argument('--device1', type=str, default="cuda:1",
                         help='which gpu to use if any (default: 0)')
-    parser.add_argument('--batch_size', type=int, default=1300,
+    parser.add_argument('--batch_size', type=int, default=300,
                         help='input batch size for training (default: 32)')
     parser.add_argument('--local_rank', default=-1, type=int,
                         help='node rank for distributed training')
@@ -85,8 +85,8 @@ def get_args_parser():
                 help='边mask随机的比例')
     parser.add_argument('--edge_enhance', type=float, default=1.0,
                 help='对邻居边的增强')
-
-
+    parser.add_argument('--weight_fold', type=float, default=0.2,
+                help='在更新图的过程中当前轮数点的相似度，和上一轮中连接情况的比例')
     
     parser.add_argument('--log_folder', type=str, default='/root/autodl-tmp/7.26备份/runs/logs',
             help='日志存储文件夹')

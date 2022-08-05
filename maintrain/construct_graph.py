@@ -160,7 +160,7 @@ class new_graph:
         e_ij = torch.stack(e_ij)
         return e_ij
             
-    def init_graph(self):
+    def init_graph(self, args):
         # e_fea = L2_dist(self.node_fea, self.node_fea)
         e_fea = self.init_edge()
         e_fea = self.edge_mlp(e_fea).view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
@@ -192,41 +192,47 @@ class new_graph:
         v = []
         ee = []
         fold_nodes = [] #所有被折叠的点
-        count = 0 #用于计被折叠点出现的位置
-        count_list = [] # 用于记录所有的被折叠点的位置
+        fold_uv = {} #用于记录（u，v）中u被折叠，v未折叠的情况 {{k:[]}, {k:[]}, ...} 字典嵌套字典，嵌套列表的形式，最外层字典的key代表对应的折叠中心，内层的key代表外围的标号，列表代表与外围有关的fold内的标号
         for i in self.fold_dict.keys():
             fold_nodes.extend(self.fold_dict[i])
-            
+        fold_nodes.extend(list(self.fold_dict.keys()))
         for i in tqdm(range(self.node_num)): #全连接图
             for j in range(i+1 ,self.node_num):
                 if threshold_e[i][j] != 0 and i != j:#判断在阈值之内可以，且无自环
-                    if i in fold_nodes or j in fold_nodes:#记录被折叠点的坐标，因为后面添加的点的连接要根据它都包含了哪些点决定
-                        count_list.append(count)#不用记录具体信息，因为反正这些点都要去掉
-                    u.append(i)
-                    v.append(j)
-                    ee.append((threshold_e[i][j]).unsqueeze(0))
-                    count += 1
-        # for fd in self.fold_dict.keys():
-        #     if len(self.fold_dict[fd]) != 0:#代表没有失效
-                #要根据所有被折叠的点的连接情况来判断新的折叠中心的连接情况
+                    # if (i not in list(self.fold_dict.keys())) and (i in fold_nodes or j in fold_nodes):#记录被折叠点的坐标，因为后面添加的点的连接要根据它都包含了哪些点决定
+                    #     count_list.append(count)#不用记录具体信息，因为反正这些点都要去掉
+                    if i in fold_nodes and j not in fold_nodes:# 用于记录平均值
+                        fold_center = 0
+                        for f_center, f_n in self.fold_dict.items():
+                            if i in f_n:
+                                fold_center = f_center
+                                break
+                        fold_uv.setdefault(fold_center, {}).setdefault(j, []).append(i)
+                    elif j in fold_nodes and i not in fold_nodes:
+                        fold_center = 0
+                        for f_center, f_n in self.fold_dict.items():
+                            if j in f_n:
+                                fold_center = f_center
+                                break
+                        fold_uv.setdefault(fold_center, {}).setdefault(i, []).append(j)
+                    elif i not in fold_nodes and j not in fold_nodes:
+                        u.append(i)
+                        v.append(j)
+                        ee.append((threshold_e[i][j]).unsqueeze(0))
 
-                # dest = []#存放折叠中心的所有目标点
-                # for node in self.fold_dict[fd]:#统计新产生的点要和哪些旧点产生关系
-                #     for idx, val in enumerate(u):
-                #         if val == node and v[idx] not in self.fold_dict[fd]: #还要去掉内部的点
-                #             dest.append(v[idx]) 
-                # dest = dict(Counter(dest))
-                # for d in dest.keys():
-                #     weight = dest[d]
-                #     u.append(fd)
-                #     v.append(d)
-                #     ee.append(weight)
-        #去除掉所有的旧点，按照先后顺序倒着来
-        count_list.reverse()
-        for dele in count_list:
-            ee.pop(dele)
-            u.pop(dele)
-            v.pop(dele)
+        for fold_center, fold_dict in fold_uv.items(): #其中，fold_dict是跟某个聚类中心相关联的外围点的信息{k:[...]},列表当中是这个外围点上一轮跟这个折叠圈中的有关的点的i
+            for outside_node, link_list in fold_dict.items():
+                avg_edge_fea = 0
+                num_nodes = len(link_list)
+                for i in link_list:
+                    avg_edge_fea += threshold_e[outside_node][i]
+                avg_edge_fea /= num_nodes
+                weight = (args.weight_fold * threshold_e[fold_center][outside_node] + (1 - args.weight_fold) * avg_edge_fea)
+                # print(f"测试用例{num_nodes}, {weight}")
+                u.append(fold_center)
+                v.append(outside_node)
+                ee.append(weight.unsqueeze(0))
+
         temp_graph = dgl.graph((u, v))
         self.graph = dgl.add_reverse_edges(temp_graph).to(self.device)
 
