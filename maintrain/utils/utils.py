@@ -1,8 +1,9 @@
+import enum
 from platform import node
 from tkinter import BROWSE
 from sklearn.cluster import SpectralClustering
 from sklearn.cluster import KMeans
-
+from sklearn.metrics import silhouette_score 
 from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
 import numpy as np
 from torch import tensor
@@ -14,12 +15,14 @@ import random
 from tqdm import tqdm
 from kmeans_pytorch import kmeans
 from sklearn.cluster import KMeans
-
+import copy
 from matplotlib import pyplot as plt
 class Cluster:
     """
     based on sklearn: https://scikit-learn.org/stable/modules/clustering.html
+    v2.0:参考refine的那片，使用聚类+二分，通过sc——score来判断是否继续二分下去
     """
+
     def __init__(self, node_fea, device, method = "K-means") -> None:
         """
         inputs: node_features
@@ -41,19 +44,104 @@ class Cluster:
         # self.cluster_num = cluster_num
         self.methods = method
         self.node_fea = node_fea
-        self.device =device      
-    def predict(self, **kwargs):
-        result = self.clusters[self.methods](**kwargs)
-        return result
+        self.device =device     
+
+    def bi_partition(self, cluster_node_fea, cluster_label, target, **kwargs):# TODO 方法可选
+        """
+        args:
+            cluster_node_fea: 将node_fea按照cluster分开[[],[],[],...]
+            cluster_label: 与上面node_fea对应的idx[[],[],[],...]
+            target: cluster中要被二分的那个类
+            method: 用于二分的聚类方法
+        returns:
+            将那个被拆分的类放回所有的类当中再返回
+            node_fea_clus: [[],[],[],...]
+            idx_clus: [[],[],[],...]
+        """
+        if len(cluster_node_fea[target]) == 0:
+            return cluster_node_fea
+        clusters_copy = copy.deepcopy(cluster_node_fea)
+        label_copy = copy.deepcopy(cluster_label)
+        clus_bi_copy = copy.deepcopy(cluster_node_fea[target])
+        label_bi_copy = copy.deepcopy(cluster_label[target])
+        pre_label =self.clusters[self.method](kwargs, x = clus_bi_copy)
+        #将
         
-    def K_means(self):
+        bi_paritition_0 = []
+        bi_paritition_1 = []    
+        bi_label_0 = []
+        bi_label_1 = []
+        for k, val in enumerate(pre_label):
+            if val == 0:
+                bi_paritition_0.append(clus_bi_copy[k])
+                bi_label_0.append(label_bi_copy[k])
+                # bi_partition_0_true_label.append(input_label[k])#真实标签，最后验证用
+            else:
+                bi_paritition_1.append(clus_bi_copy[k]) 
+                bi_label_1.append(label_bi_copy[k])
+                # bi_partition_1_true_label.append(input_label[k])#真实标签，最后验证用
+        clusters_copy.pop(target)
+        clusters_copy.append(bi_paritition_0)
+        clusters_copy.append(bi_paritition_1)
+        label_copy.pop(target)
+        label_copy.append(bi_label_0)
+        label_copy.append(bi_label_1)
+        return clusters_copy, label_copy
+ 
+    def predict(self, **kwargs):
+        """
+        v2.0 不断的二分
+        returns:
+            labels:以列表的形式按顺序返回
+        """
+        node_fea_clus = [[i for i in self.node_fea]] #改成列表嵌套的形式
+        label_clus = [[i for i in range(len(self.node_fea))]] # 初始化标签都为0
+        final_label = [-1] * len(self.node_fea)
+        # clus_method = self.clusters[self.method]()
+        sc_best = sc_pre = -1000
+        i_best = 0
+        while(i_best != -1):
+            i_best = -1
+            i = 0
+            while(i < len(node_fea_clus)):# 挑选出最适合二分的那个cluster
+                _, idx_clus = self.bi_partition(node_fea_clus, label_clus, i)
+                #将[[],[],[],...]形式的label转为[]形式
+                pre_label = [-1] * len(self.node_fea)
+                for label, clu_i in enumerate(idx_clus):
+                    for itm in clu_i:
+                        pre_label[itm] = label
+                assert -1 not in pre_label, "对不上"
+                sc_new = silhouette_score(self.node_fea.cpu().numpy(), pre_label, metric='cosine') # (node_fea, pre_label)
+                if sc_new > sc_best:
+                    sc_best = sc_new
+                    i_best = i
+                i += 1
+            if i_best != -1: #将上面找出的i_best拆分
+                node_fea_clus, label_clus = self.bi_partition(node_fea_clus, label_clus, i_best)
+                final_label = [-1] * len(self.node_fea)
+                for label, clu_i in enumerate(label_clus):
+                    for itm in clu_i:
+                        final_label[itm] = label
+                assert -1 not in final_label, "对不上"
+                sc_pre = silhouette_score(self.node_fea.cpu().numpy(), final_label, metric='cosine') # (node_fea, pre_label)
+                sc_best = sc_pre
+            else: #结束二分
+                break
+        # result = self.clusters[self.methods](**kwargs)
+        clus_num = len(set(final_label))
+        print(f"最终分为{clus_num}类")
+        return final_label, clus_num
+        
+    def K_means(self, x, **kwargs):
 #         print("use cluster-method: K-means")
 #         self.model = KMeans(self.cluster_num)
 #         pre_label = self.model.fit_predict(self.node_fea.cpu())
 # #         print(pre_label)
 #         return pre_label
         print("use cluster-method: K-means")
-        pre_label, cluster_centers = kmeans(self.node_fea, num_clusters=self.cluster_num, distance='euclidean', device=torch.device('cuda:0'))
+        print(type(x))
+        print(len(x))
+        pre_label, cluster_centers = kmeans(torch.stack(x), num_clusters=2, distance='euclidean', device=torch.device('cuda:0'))
         pre_label = pre_label.to('cuda:0')
         return pre_label
 
@@ -87,7 +175,7 @@ class Cluster:
             pre_label[i] = pre_label[i] - 1
         return pre_label, clus_num
     
-    def spectral(self):
+    def spectral(self, x, **kwargs):
         Scluster = SpectralClustering(n_clusters=2, affinity='nearest_neighbors',n_neighbors=10)# TODO 补充谱聚类参数
         
         return  Scluster.fit_predict(self.node_fea)# TODO 验证输入格式
