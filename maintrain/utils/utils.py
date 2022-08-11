@@ -64,7 +64,7 @@ class Cluster:
         label_copy = copy.deepcopy(cluster_label)
         clus_bi_copy = copy.deepcopy(cluster_node_fea[target])
         label_bi_copy = copy.deepcopy(cluster_label[target])
-        pre_label =self.clusters[self.method](kwargs, x = clus_bi_copy)
+        pre_label =self.clusters[self.methods](x = clus_bi_copy, kwargs=kwargs)
         #将
         
         bi_paritition_0 = []
