@@ -16,6 +16,7 @@
 """
 import torch
 import torch.nn.functional as F
+import copy
 class fold_dict:
     def __init__(self) -> None:
         """fold_dict:用于存储每个折叠后新产生的点是由哪些点组成
@@ -111,8 +112,19 @@ def update_fold_dic(stable_dic: stable_dict, fold_dic: fold_dict, node_fea):
         更新完成后stable_dic清零
     """
     print("更新折叠字典")
-    print( stable_dic.stable_dic)
+    old_dic = copy.deepcopy(fold_dic.fold_dict)
+    print(stable_dic.stable_dic)
+    #更新内容：
     for sta in stable_dic.stable_dic.keys():
         if len(stable_dic.stable_dic[sta]) >= 2:
             fold_dic.add_element(stable_dic.stable_dic[sta], node_fea)
+    new_dic = {}
+    for k_new, v_new in fold_dic.fold_dict.items():
+        if k_new in list(old_dic.keys()):
+            new_dic[k_new] = list(set(fold_dic.fold_dict[k_new]) - set(old_dic[k_new]))
+        else:
+            new_dic[k_new] = fold_dic.fold_dict[k_new]
+    for k, v in new_dic.items():
+        if v != []:
+            print(f"中心点{k}, 更新了{v}")
     stable_dic.reset()
