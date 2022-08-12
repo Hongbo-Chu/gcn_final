@@ -26,7 +26,7 @@ def get_args_parser():
     parser.add_argument('--training_wsi', type=str, default="43",
                         help='which gpu to use if any (default: 0)')
 
-    parser.add_argument('--wsi_folder', type=str, default="/root/autodl-tmp/training_wsi",
+    parser.add_argument('--wsi_folder', type=str, default="/root/autodl-tmp/wsi_training",
                         help='which gpu to use if any (default: 0)')
 
     parser.add_argument('--device0', type=str, default="cuda:0",
@@ -44,7 +44,7 @@ def get_args_parser():
     # 
     parser.add_argument('--backbone', type=str, default='vit',
                     help='backbonetype')
-    parser.add_argument('--cluster_method', type=str, default='hierarchy',
+    parser.add_argument('--cluster_method', type=str, default='spectral',
                     help='cluster_method')
     parser.add_argument('--lr', type=float, default=1e-5,
                     help='backbonetype')
@@ -88,11 +88,11 @@ def get_args_parser():
     parser.add_argument('--weight_fold', type=float, default=0.2,
                 help='在更新图的过程中当前轮数点的相似度，和上一轮中连接情况的比例')
     
-    parser.add_argument('--log_folder', type=str, default='/root/autodl-tmp/7.26备份/runs/logs',
+    parser.add_argument('--log_folder', type=str, default='/root/autodl-tmp/ttt/runs/logs',
             help='日志存储文件夹')
-    parser.add_argument('--weight_folder', type=str, default='/root/autodl-tmp/7.26备份/runs/weights',
+    parser.add_argument('--weight_folder', type=str, default='/root/autodl-tmp/ttt/runs/weights',
             help='模型存储文件夹')
-    parser.add_argument('--save_folder_test', type=str, default='/root/autodl-tmp/7.26备份/runs/test',
+    parser.add_argument('--save_folder_test', type=str, default='/root/autodl-tmp/ttt/runs/test',
             help='模型存储文件夹')
     return parser
 

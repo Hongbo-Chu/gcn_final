@@ -64,7 +64,7 @@ class Cluster:
         label_copy = copy.deepcopy(cluster_label)
         clus_bi_copy = copy.deepcopy(cluster_node_fea[target])
         label_bi_copy = copy.deepcopy(cluster_label[target])
-        pre_label =self.clusters[self.methods](x = clus_bi_copy, kwargs=kwargs)
+        pre_label =self.clusters[self.methods](x = clus_bi_copy, num_clus=kwargs['num_clus'])
         #将
         
         bi_paritition_0 = []
@@ -88,7 +88,7 @@ class Cluster:
         label_copy.append(bi_label_1)
         return clusters_copy, label_copy
  
-    def predict(self, **kwargs):
+    def predict1(self, **kwargs):
         """
         v2.0 不断的二分
         returns:
@@ -104,7 +104,7 @@ class Cluster:
             i_best = -1
             i = 0
             while(i < len(node_fea_clus)):# 挑选出最适合二分的那个cluster
-                _, idx_clus = self.bi_partition(node_fea_clus, label_clus, i)
+                _, idx_clus = self.bi_partition(node_fea_clus, label_clus, i, **kwargs)
                 #将[[],[],[],...]形式的label转为[]形式
                 pre_label = [-1] * len(self.node_fea)
                 for label, clu_i in enumerate(idx_clus):
@@ -117,7 +117,7 @@ class Cluster:
                     i_best = i
                 i += 1
             if i_best != -1: #将上面找出的i_best拆分
-                node_fea_clus, label_clus = self.bi_partition(node_fea_clus, label_clus, i_best)
+                node_fea_clus, label_clus = self.bi_partition(node_fea_clus, label_clus, i_best, **kwargs)
                 final_label = [-1] * len(self.node_fea)
                 for label, clu_i in enumerate(label_clus):
                     for itm in clu_i:
@@ -131,6 +131,10 @@ class Cluster:
         clus_num = len(set(final_label))
         print(f"最终分为{clus_num}类")
         return final_label, clus_num
+    
+    def predict2(self, **kwargs):
+        result = self.clusters[self.methods](x = self.node_fea.cpu(), num_clus=kwargs['num_clus'])
+        return result
         
     def K_means(self, x, **kwargs):
 #         print("use cluster-method: K-means")
@@ -175,10 +179,12 @@ class Cluster:
             pre_label[i] = pre_label[i] - 1
         return pre_label, clus_num
     
-    def spectral(self, x, **kwargs):
-        Scluster = SpectralClustering(n_clusters=2, affinity='nearest_neighbors',n_neighbors=10)# TODO 补充谱聚类参数
+    def spectral(self, x, num_clus, **kwargs):
+        Scluster = SpectralClustering(n_clusters=num_clus, affinity='nearest_neighbors',n_neighbors=10)# TODO 补充谱聚类参数
+        if type(x) == list:
+            x = torch.stack(x)
         
-        return  Scluster.fit_predict(self.node_fea)# TODO 验证输入格式
+        return  Scluster.fit_predict(x.numpy())# TODO 验证输入格式
     
     def  Affinity(self):
         pass
