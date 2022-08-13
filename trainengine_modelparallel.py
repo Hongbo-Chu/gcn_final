@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import torch.optim as optimizer
 import os
 from time import time
+from collections import Counter
 from maintrain.utils.utils import Cluster
 from maintrain.construct_graph import new_graph
 from maintrain.utils.utils import chooseNodeMask, compute_pys_feature, fea2pos, chooseEdgeMask, compute_clus_center
@@ -11,7 +12,7 @@ from maintrain.utils.fold import stable_dict as sd
 from maintrain.utils.fold import update_fold_dic
 
 
-def save_log(save_folder, wsi_name, mini_patch, total, epoch, mask_nodes, fold_dict, labels, time, center_fea, edge_fea, center_pos, edge_pos, loss, big_epoch, acc=None, train=True):
+def save_log(save_folder, wsi_name, mini_patch, total, epoch, mask_nodes, fold_dict, labels, time, center_fea, edge_fea, center_pos, edge_pos, loss, big_epoch, acc=None, train=True, true_clus_num = None, clus_num = None):
     """
     一个wsi存一个md
     """
@@ -32,6 +33,8 @@ def save_log(save_folder, wsi_name, mini_patch, total, epoch, mask_nodes, fold_d
             edge_map = set(edge_fea).intersection(edge_pos)
             info = '## training    epoch:' + str(epoch) + '   mini_patch: ' + str(mini_patch) + "/" + str(total) + '   training_time: ' + str(time) + 's\n'
             f.write(info)
+            clus_info = '### 真实情况：' + str(true_clus_num)+ ', 实际聚类的时候分成了' + str(clus_num) + '类 \n'
+            f.write(clus_info)
             f.write('### loss is: ' +str(float(loss)) + '\n')
             f.write("### labels: \n")
             f.write(str(labels))
@@ -167,7 +170,13 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
             wsi_dict[i].pop(-1)
         train_time = int(time() - start)
         clus_centers = compute_clus_center(predict_nodes_detach, clu_labe_new)
-        save_log(args.log_folder, wsi_name, mini_patch, total, epoch, mask_idx, fold_dic, clu_labe_new, train_time, fea_center, fea_edge, pys_center, pys_edge, loss, big_epoch, acc=None, train=True)
+        
+        #统计一下真实标签的数量
+        la = []
+        for i in range(len(wsi_dict)):
+            la.append(wsi_dict[i][3])
+        true_label = dict(Counter(la))
+        save_log(args.log_folder, wsi_name, mini_patch, total, epoch, mask_idx, fold_dic, clu_labe_new, train_time, fea_center, fea_edge, pys_center, pys_edge, loss, big_epoch, acc=None, train=True, true_clus_num=true_label, clus_num=clus_num)
     true_label = []
     for i in range(len(wsi_dict)):
         true_label.append(int(wsi_dict[i][3]))

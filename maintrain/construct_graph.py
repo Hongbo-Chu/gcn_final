@@ -201,7 +201,11 @@ class new_graph:
                 if threshold_e[i][j] != 0 and i != j:#判断在阈值之内可以，且无自环
                     # if (i not in list(self.fold_dict.keys())) and (i in fold_nodes or j in fold_nodes):#记录被折叠点的坐标，因为后面添加的点的连接要根据它都包含了哪些点决定
                     #     count_list.append(count)#不用记录具体信息，因为反正这些点都要去掉
-                    if i in fold_nodes and j not in fold_nodes:# 用于记录平均值
+                    if i not in fold_nodes and j not in fold_nodes:
+                        u.append(i)
+                        v.append(j)
+                        ee.append((threshold_e[i][j]).unsqueeze(0))
+                    elif i in fold_nodes and j not in fold_nodes:# 用于记录平均值
                         fold_center = 0
                         for f_center, f_n in self.fold_dict.items():
                             if i in f_n:
@@ -215,10 +219,6 @@ class new_graph:
                                 fold_center = f_center
                                 break
                         fold_uv.setdefault(fold_center, {}).setdefault(i, []).append(j)
-                    elif i not in fold_nodes and j not in fold_nodes:
-                        u.append(i)
-                        v.append(j)
-                        ee.append((threshold_e[i][j]).unsqueeze(0))
 
         for fold_center, fold_dict in fold_uv.items(): #其中，fold_dict是跟某个聚类中心相关联的外围点的信息{k:[...]},列表当中是这个外围点上一轮跟这个折叠圈中的有关的点的i
             for outside_node, link_list in fold_dict.items():

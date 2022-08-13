@@ -182,7 +182,7 @@ def run():
             print(f"统计一下真实标签数量")
             la = []
             for i in range(len(wdict)):
-                la.append(wsi_dict[i][3])
+                la.append(wdict[i][3])
             print(Counter(la))
             clus_num = len(Counter(la))
             res_dict = train_one_wsi(backboneModel, graph_model, graph_mlp, criterion, wimg, wdict, idx, total, epoch, args)
