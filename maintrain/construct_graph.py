@@ -197,14 +197,17 @@ class new_graph:
             fold_nodes.extend(self.fold_dict[i])
         fold_nodes.extend(list(self.fold_dict.keys()))
         for i in tqdm(range(self.node_num)): #全连接图
-            for j in range(i+1 ,self.node_num):
-                if threshold_e[i][j] != 0 and i != j:#判断在阈值之内可以，且无自环
+            flag = 0
+            for j in range(i ,self.node_num):
+                if threshold_e[i][j] != 0:#判断在阈值之内可以，且无自环
                     # if (i not in list(self.fold_dict.keys())) and (i in fold_nodes or j in fold_nodes):#记录被折叠点的坐标，因为后面添加的点的连接要根据它都包含了哪些点决定
                     #     count_list.append(count)#不用记录具体信息，因为反正这些点都要去掉
+                    flag = 1
                     if i not in fold_nodes and j not in fold_nodes:
                         u.append(i)
                         v.append(j)
                         ee.append((threshold_e[i][j]).unsqueeze(0))
+                        
                     elif i in fold_nodes and j not in fold_nodes:# 用于记录平均值
                         fold_center = 0
                         for f_center, f_n in self.fold_dict.items():
@@ -219,6 +222,13 @@ class new_graph:
                                 fold_center = f_center
                                 break
                         fold_uv.setdefault(fold_center, {}).setdefault(i, []).append(j)
+            
+            if flag == 0:
+                print("wtf")
+                u.append(i)
+                v.append(i)
+                ee.append((torch.tensor([0])).to(args.device1))
+
 
         for fold_center, fold_dict in fold_uv.items(): #其中，fold_dict是跟某个聚类中心相关联的外围点的信息{k:[...]},列表当中是这个外围点上一轮跟这个折叠圈中的有关的点的i
             for outside_node, link_list in fold_dict.items():
