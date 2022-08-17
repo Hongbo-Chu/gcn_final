@@ -8,6 +8,7 @@ from collections import Counter
 import torch.nn.functional as F
 import dgl
 from maintrain.utils.utils import Cluster, neighber_type
+import copy
 """
 从backbone来的数据：
 1. nodefeature:
@@ -170,7 +171,12 @@ class new_graph:
         # print("算我呢")
         # threshold = sorted(tt)[len(tt)//2]
         # print("caisaunwa")
-        threshold_e = torch.threshold(e_fea, 0.4, 0)#size() = n,n
+        threshold_e = e_fea#torch.threshold(e_fea, 0.4, 0)#size() = n,n
+        # for i in range(len(threshold_e)):
+        #     threshold_e[i][i] = 0
+        # print(threshold_e[3])
+        # print(threshold_e[240])
+
         #然后判断需要增强的邻居节点
         edge_enhance = []
         for node in range(len(self.wsi_dic)):
@@ -196,10 +202,15 @@ class new_graph:
         for i in self.fold_dict.keys():
             fold_nodes.extend(self.fold_dict[i])
         fold_nodes.extend(list(self.fold_dict.keys()))
+        print("古典")
+        for i in range(len(threshold_e)):
+            if threshold_e[i].sum() == 0:
+                print(i)
+
         for i in tqdm(range(self.node_num)): #全连接图
             flag = 0
-            for j in range(i ,self.node_num):
-                if threshold_e[i][j] != 0:#判断在阈值之内可以，且无自环
+            for j in range(i + 1 ,self.node_num):
+                if threshold_e[i][j] != 0:#判断在阈值之内可以
                     # if (i not in list(self.fold_dict.keys())) and (i in fold_nodes or j in fold_nodes):#记录被折叠点的坐标，因为后面添加的点的连接要根据它都包含了哪些点决定
                     #     count_list.append(count)#不用记录具体信息，因为反正这些点都要去掉
                     flag = 1
@@ -208,7 +219,7 @@ class new_graph:
                         v.append(j)
                         ee.append((threshold_e[i][j]).unsqueeze(0))
                         
-                    elif i in fold_nodes and j not in fold_nodes:# 用于记录平均值
+                    elif i in fold_nodes and j not in fold_nodes:
                         fold_center = 0
                         for f_center, f_n in self.fold_dict.items():
                             if i in f_n:
@@ -222,12 +233,14 @@ class new_graph:
                                 fold_center = f_center
                                 break
                         fold_uv.setdefault(fold_center, {}).setdefault(i, []).append(j)
-            
+            wtf = []
             if flag == 0:
                 print("wtf")
-                u.append(i)
-                v.append(i)
-                ee.append((torch.tensor([0])).to(args.device1))
+                print(i)
+                wtf.append(i)
+            #     u.append(i)
+            #     v.append(i)
+            #     ee.append((torch.tensor([0])).to(args.device1))
 
 
         for fold_center, fold_dict in fold_uv.items(): #其中，fold_dict是跟某个聚类中心相关联的外围点的信息{k:[...]},列表当中是这个外围点上一轮跟这个折叠圈中的有关的点的i
@@ -245,7 +258,9 @@ class new_graph:
 
         temp_graph = dgl.graph((u, v))
         self.graph = dgl.add_reverse_edges(temp_graph).to(self.device)
-
+        all_uv = copy.deepcopy(u)
+        all_uv.extend(v)
+        print(f"图中点的数量为{len(set(all_uv))},")
         print(self.graph)
         ee = torch.cat(ee, dim=0).unsqueeze(1)#最终的edge_fea，是将那些为0的边都去掉了
         ee = torch.cat([ee,ee], dim =0)
