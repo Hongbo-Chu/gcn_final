@@ -20,19 +20,6 @@ from maintrain.models.loss import myloss
 from maintrain.utils.utils import merge_mini_patch, evaluate
 from evaluate import evaluate_wsi
 
-def seed_everything(seed: int):
-    import random, os
-    import numpy as np
-    import torch
-    
-    random.seed(seed)
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = True
-
 
 def get_args_parser():
     parser = argparse.ArgumentParser(description='PyTorch implementation')
@@ -169,7 +156,6 @@ def run():
     # data loading.
     
 #     model = Model(num_features, 128, num_classes).to(device)
-    seed_everything(114514)
     args = get_args_parser()
     args = args.parse_args()
     backboneModel = build_model(args.backbone).to(args.device0)

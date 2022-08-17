@@ -1,20 +1,29 @@
+import enum
 from platform import node
+from tkinter import BROWSE
 from sklearn.cluster import SpectralClustering
 from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score 
+from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
+import numpy as np
 from torch import tensor
 import torch
 import time
 from collections import Counter
 import torch.nn.functional as F
 import random
+from tqdm import tqdm
 from kmeans_pytorch import kmeans
-
-
+from sklearn.cluster import KMeans
+import copy
+from matplotlib import pyplot as plt
 class Cluster:
     """
     based on sklearn: https://scikit-learn.org/stable/modules/clustering.html
+    v2.0:参考refine的那片，使用聚类+二分，通过sc——score来判断是否继续二分下去
     """
-    def __init__(self, node_fea, cluster_num, device, method = "K-means", **kwargs) -> None:
+
+    def __init__(self, node_fea, device, method = "K-means") -> None:
         """
         inputs: node_features
         
@@ -30,32 +39,152 @@ class Cluster:
         """
         
         # our support cluster methods
-        self.clusters= {'K-means':self.K_means, 'spectral':self.spectral, 'Affinity':self.Affinity}
-        assert method in self.clusters.keys(), "only support K-means, spectral, Affinity"
-        self.cluster_num = cluster_num
+        self.clusters= {'K-means':self.K_means, 'spectral':self.spectral, 'Affinity':self.Affinity, 'hierarchy': self.hierarchy}
+        assert method in self.clusters.keys(), "only support K-means, spectral, Affinity, hierarchy"
+        # self.cluster_num = cluster_num
         self.methods = method
         self.node_fea = node_fea
-        self.device =device        
-    def predict(self):
-        result = self.clusters[self.methods]()
+        self.device =device     
+
+    def bi_partition(self, cluster_node_fea, cluster_label, target, **kwargs):# TODO 方法可选
+        """
+        args:
+            cluster_node_fea: 将node_fea按照cluster分开[[],[],[],...]
+            cluster_label: 与上面node_fea对应的idx[[],[],[],...]
+            target: cluster中要被二分的那个类
+            method: 用于二分的聚类方法
+        returns:
+            将那个被拆分的类放回所有的类当中再返回
+            node_fea_clus: [[],[],[],...]
+            idx_clus: [[],[],[],...]
+        """
+        if len(cluster_node_fea[target]) == 0:
+            return cluster_node_fea
+        clusters_copy = copy.deepcopy(cluster_node_fea)
+        label_copy = copy.deepcopy(cluster_label)
+        clus_bi_copy = copy.deepcopy(cluster_node_fea[target])
+        label_bi_copy = copy.deepcopy(cluster_label[target])
+        pre_label =self.clusters[self.methods](x = clus_bi_copy, num_clus=kwargs['num_clus'])
+        #将
+        
+        bi_paritition_0 = []
+        bi_paritition_1 = []    
+        bi_label_0 = []
+        bi_label_1 = []
+        for k, val in enumerate(pre_label):
+            if val == 0:
+                bi_paritition_0.append(clus_bi_copy[k])
+                bi_label_0.append(label_bi_copy[k])
+                # bi_partition_0_true_label.append(input_label[k])#真实标签，最后验证用
+            else:
+                bi_paritition_1.append(clus_bi_copy[k]) 
+                bi_label_1.append(label_bi_copy[k])
+                # bi_partition_1_true_label.append(input_label[k])#真实标签，最后验证用
+        clusters_copy.pop(target)
+        clusters_copy.append(bi_paritition_0)
+        clusters_copy.append(bi_paritition_1)
+        label_copy.pop(target)
+        label_copy.append(bi_label_0)
+        label_copy.append(bi_label_1)
+        return clusters_copy, label_copy
+ 
+    def predict1(self, **kwargs):
+        """
+        v2.0 不断的二分
+        returns:
+            labels:以列表的形式按顺序返回
+        """
+        node_fea_clus = [[i for i in self.node_fea]] #改成列表嵌套的形式
+        label_clus = [[i for i in range(len(self.node_fea))]] # 初始化标签都为0
+        final_label = [-1] * len(self.node_fea)
+        # clus_method = self.clusters[self.method]()
+        sc_best = sc_pre = -1000
+        i_best = 0
+        while(i_best != -1):
+            i_best = -1
+            i = 0
+            while(i < len(node_fea_clus)):# 挑选出最适合二分的那个cluster
+                _, idx_clus = self.bi_partition(node_fea_clus, label_clus, i, **kwargs)
+                #将[[],[],[],...]形式的label转为[]形式
+                pre_label = [-1] * len(self.node_fea)
+                for label, clu_i in enumerate(idx_clus):
+                    for itm in clu_i:
+                        pre_label[itm] = label
+                assert -1 not in pre_label, "对不上"
+                sc_new = silhouette_score(self.node_fea.cpu().numpy(), pre_label, metric='cosine') # (node_fea, pre_label)
+                if sc_new > sc_best:
+                    sc_best = sc_new
+                    i_best = i
+                i += 1
+            if i_best != -1: #将上面找出的i_best拆分
+                node_fea_clus, label_clus = self.bi_partition(node_fea_clus, label_clus, i_best, **kwargs)
+                final_label = [-1] * len(self.node_fea)
+                for label, clu_i in enumerate(label_clus):
+                    for itm in clu_i:
+                        final_label[itm] = label
+                assert -1 not in final_label, "对不上"
+                sc_pre = silhouette_score(self.node_fea.cpu().numpy(), final_label, metric='cosine') # (node_fea, pre_label)
+                sc_best = sc_pre
+            else: #结束二分
+                break
+        # result = self.clusters[self.methods](**kwargs)
+        clus_num = len(set(final_label))
+        print(f"最终分为{clus_num}类")
+        return final_label, clus_num
+    
+    def predict2(self, **kwargs):
+        result = self.clusters[self.methods](x = self.node_fea.cpu(), num_clus=kwargs['num_clus'])
         return result
         
-    def K_means(self):
+    def K_means(self, x, **kwargs):
 #         print("use cluster-method: K-means")
 #         self.model = KMeans(self.cluster_num)
 #         pre_label = self.model.fit_predict(self.node_fea.cpu())
 # #         print(pre_label)
 #         return pre_label
         print("use cluster-method: K-means")
-        pre_label, cluster_centers = kmeans(self.node_fea, num_clusters=self.cluster_num, distance='euclidean', device=torch.device(self.device))
-
+        print(type(x))
+        print(len(x))
+        pre_label, cluster_centers = kmeans(torch.stack(x), num_clusters=2, distance='euclidean', device=torch.device('cuda:0'))
+        pre_label = pre_label.to('cuda:0')
         return pre_label
+
+    def hierarchy(self, **kwargs):
+        threshold_dis = kwargs['threshold_dis']
+        if 'method_h' not in kwargs.keys():
+            method_h = 'ward'
+        else:
+            method_h = kwargs['method_h']
+        self.node_fea = self.node_fea.to("cpu")
+        Z = linkage(self.node_fea, method_h)
+        q = sorted(Z[:,2])
+        thres = q[int(len(q)*0.99)]
+        pre_label = fcluster(Z, thres, criterion='distance')
+        print(Z[:,2].mean())
+        print(f"sss{len(set(pre_label))}")
+        # plt.figure(figsize=(50, 10))
+        # plt.title('Hierarchical Clustering Dendrogram')
+        # plt.xlabel('sample index')
+        # plt.ylabel('distance')
+        # dendrogram(Z, leaf_rotation=90., leaf_font_size=8.)
+        # f = plt.gcf()  #获取当前图像
+        # f.savefig(r'bb.png')
+        assert False
+        pre_label = fcluster(Z, threshold_dis, criterion='distance')
+        # print(pre_label)
+        clus_num = len(set (pre_label))
+        # print(clus_num)
+        #映射到从零开始
+        for i in range(len(pre_label)):
+            pre_label[i] = pre_label[i] - 1
+        return pre_label, clus_num
     
-    
-    def spectral(self):
-        Scluster = SpectralClustering(n_clusters=2, affinity='nearest_neighbors',n_neighbors=10)# TODO 补充谱聚类参数
+    def spectral(self, x, num_clus, **kwargs):
+        Scluster = SpectralClustering(n_clusters=num_clus, affinity='nearest_neighbors',n_neighbors=10)# TODO 补充谱聚类参数
+        if type(x) == list:
+            x = torch.stack(x)
         
-        return  Scluster.fit_predict(self.node_fea)# TODO 验证输入格式
+        return  Scluster.fit_predict(x.numpy())# TODO 验证输入格式
     
     def  Affinity(self):
         pass
@@ -80,7 +209,7 @@ def euclidean_dist(x, center):
     yy = torch.pow(y, 2).sum(1, keepdim=True).expand(n, m).t()
     dist = xx + yy
     # torch.addmm(beta=1, input, alpha=1, mat1, mat2, out=None)，这行表示的意思是dist - 2 * x * yT 
-    dist.addmm_(1, -2, x, y.t())
+    dist.addmm_(x, y.t(), beta = 1, alpha = -2)
     # clamp()函数可以限定dist内元素的最大最小范围，dist最后开方，得到样本之间的距离矩阵
     dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
     res = []
@@ -95,9 +224,18 @@ def samesort(list1, list2):
         list1, list2
     """
     return zip(*sorted(zip(list1, list2))) 
+
+def compute_clus_center(node_fea, clus_res):
+    node_fea_list = [[] for _ in range(len(set(list(clus_res))))]
+    for idx, n in enumerate(node_fea):
+        node_fea_list[clus_res[idx]].append(n)
+    for idx in range(len(node_fea_list)):
+        node_fea_list[idx] = torch.stack(node_fea_list[idx]).mean()
+    return node_fea_list
+
     
 
-def split2clusters(node_fea, cluster_num, device, cluster_method = "K-means"):
+def split2clusters(node_fea, cluster_num, cluster_res, device, cluster_method = "K-means"):
     """
     split nodes into different clusters
     将node_fea按照聚类的结果进行分类，
@@ -109,16 +247,20 @@ def split2clusters(node_fea, cluster_num, device, cluster_method = "K-means"):
         node_fea_list：按照聚类的种类分的列表[[tensor(1,node_fea)， tensor(1,node_fea)....],[],[]....],
         node_idx_list:按照聚类种类存储的每一类中的node_indx（具有唯一标识性），[[int, int,int,......],[],[]...]
     """
+    
     node_fea_list = [[] for _ in range(cluster_num)] # 用于存放每一类cluster的node_fea(tensor)
     node_idx_list = [[] for _ in range(cluster_num)] # 用于存放每一类cluster的标签(int)
-    cluster_res = Cluster(node_fea=node_fea, cluster_num=cluster_num, method=cluster_method, device=device).predict()
+    # cluster_res = Cluster(node_fea=node_fea, cluster_num=cluster_num, method=cluster_method, device=device).predict()
     #按照聚类标签分类
     for idx, clu in enumerate(cluster_res):
-        node_fea_list[clu].append(node_fea[idx].unsqueeze(0))
-        node_idx_list[clu].append(idx)
+        try:
+            node_fea_list[clu].append(node_fea[idx].unsqueeze(0))
+            node_idx_list[clu].append(idx)
+        except:
+            print(f"啥超了啊{idx} {clu} {len(node_fea_list)}")
     return node_fea_list, node_idx_list
 
-def chooseNodeMask(node_fea, cluster_num, mask_rate:list, wsi, device, stable_dic, cluster_method = "K-means"):
+def chooseNodeMask(node_fea, cluster_num, mask_rate:list, wsi, device, stable_dic, cluster_res, cluster_method = "K-means"):
     """
     choose which nodes to mask of a certain cluster
     args:
@@ -137,13 +279,14 @@ def chooseNodeMask(node_fea, cluster_num, mask_rate:list, wsi, device, stable_di
     mask_node_idx = [] # 用于存储最终mask点的idx
     high = [] # 用于存储高相似度
     low = [] #用于存储低相似度
-    node_fea_list, node_idx_list = split2clusters(node_fea, cluster_num, device, cluster_method)
+    node_fea_list, node_idx_list = split2clusters(node_fea, cluster_num, cluster_res, device, cluster_method)
     sort_idx_rst = [[] for i in range(cluster_num)]#用于存放每一类按照相似度从大到小的排序结果，后面edgemask的时候要用。
     cluster_center_list = []
     #取mask前先要判断是否重合
     pys_center, pys_edge = compute_pys_feature(wsi=wsi, n = 1)#计算处于物理中心和边缘的点
+    # print(f"边缘的点和中心的点{len(pys_edge)} {len(pys_center)}")
     #对每一类点分别取mask
-    print(f"我真实超了{len(node_fea_list)}")
+
     for idx, (feats, idxs) in enumerate(zip(node_fea_list, node_idx_list)):
         #feats的格式是[tensor,tessor....],先要拼成一个tensor
         feats = torch.cat(feats, dim = 0)
@@ -169,6 +312,7 @@ def chooseNodeMask(node_fea, cluster_num, mask_rate:list, wsi, device, stable_di
                 mask_node_idx.extend(mask_nodes_set)
                 high.extend(sorted_idex[:mask_num])#概率高的点，但是不一定被加mask
                 #直接添加
+                # print(f"调试调试{len(pys_center)}")
                 stable_dic.add_stable_idx(nodes_tobe_mask, pys_center, idx)
             elif i == 2:#地相似度
                 #先判断是否重合
@@ -194,7 +338,7 @@ def chooseEdgeMask(u_v_pair, clus_label, sort_idx_rst, rates:dict):
         源节点-目标节点对在所有边中的位置，list形式
     """
     u, v = u_v_pair #u,v分别为两个长列表
-    pairs = [(u[i], v[i]) for i in range(len(u))]#将u,v变成list of pair的形式，方便后面查找
+    pairs_dict = {(u[i], v[i]): i for i in range(len(u))}#将u,v变成list of pair的形式，方便后面查找
     diff = []
     same = [[] for _ in range(len(set(clus_label)))]
     # same = []
@@ -206,23 +350,56 @@ def chooseEdgeMask(u_v_pair, clus_label, sort_idx_rst, rates:dict):
             diff.append((u[i], v[i]))
         else:
             same[clus_label[u[i]]].append((u[i], v[i]))
-    
     # 类间
     random.shuffle(diff)
-    mask_edge_pair.extend(diff[:int(len(diff) * rates['inter'])])
+    mask_edge_pair.extend(diff[:int(len(u) * rates['inter'])])
     #类内半径
-    print("到这里还可以")
-    print(len(mask_edge_pair))
+    def judge_rad(u, v, sort_idx, rate):
+        """ 
+        寻找符合条件的类内半径
+        """
+        top = sort_idx[:int(len(sort_idx) * rate)]
+        last = sort_idx[-int(len(sort_idx) * rate):]
+        return True if ((u in top) and (v in last)) or((u in last) and (v in top)) else False
+
+    def judge_center(u, v, sort_idx, rate):
+        top = sort_idx[:int(len(sort_idx) * rate)]
+        return True if (u in top) and (v in top) else False
+
+    temp = []
+    for idx, clus in enumerate(same):
+        #如果一个在前10%,一个在后10%就算类内半径
+        for u_v in clus:
+            u_ = u_v[0]
+            v_ = u_v[1]
+            if judge_rad(u_, v_, sort_idx_rst[idx], 0.1):
+                temp.append(u_v)
+            if judge_center(u_, v_, sort_idx_rst[idx], 0.1):
+                temp.append(u_v)
+    random.shuffle(temp)
+    mask_edge_pair.extend(temp[:int(len(u) * rates['inner'])])
     
-    #中心
     #随机
-    #TODO 添加随机
+    temp2 = []#将same打散，用于取随机
+    for i in same:
+        temp2.append(i)
+    #去重
+    random.shuffle(temp2)
+    count = len(u) * rates['random']
+    for i in range(len(temp2)):
+        if count == 0:
+            break
+        if temp2[i] not in temp:
+            mask_edge_pair.extend(temp2[i])
+            count -= 1
     
     #最后要将edge_pair的数据转化为edge_idx
     edge_idx = []
-    for i, pair in enumerate(mask_edge_pair):
+    print(f"choose edge_mask")
+    print(len(mask_edge_pair))
+    for i, pair in tqdm(enumerate(mask_edge_pair)):
         # print(i)
-        idx = pairs.index(pair)
+        idx = pairs_dict[pair]
         edge_idx.append(idx)
 
     return edge_idx
@@ -262,7 +439,7 @@ def compute_pys_feature(wsi, n):
     pos_dict = {}
     for i in range(len(wsi)):
         pos = wsi[i][2]
-        label = wsi[i][3]
+        label = wsi[i][-1]
         pos_dict[tuple(pos)] = label
     # print(pos_dict)
     for j in range(len(wsi)):
@@ -272,7 +449,7 @@ def compute_pys_feature(wsi, n):
             center_nodes.append(j)
         else:
             edge_nodes.append(j)
-#     print(f"center&edge{len(center_nodes)}， {len(edge_nodes)}")
+    # print(f"center&edge{len(center_nodes)}， {len(edge_nodes)}")
     return center_nodes, edge_nodes
 
 
@@ -288,8 +465,83 @@ def fea2pos(center_fea, edge_fea, center_pos, edge_pos):
     print(f"边缘对齐的点有{len(edge_map)}个")
 
 
+class minipatch:
+    def __init__(self, clus_center_dict, name):
+        """
+        clus_center_dict:{clu_center:[truelabel]}
+        """
+        self.mini_patch_name = name
+        self.clus_center_list = []
+        self.clus_truelabel = [[] for _ in range(len(clus_center_dict))]
+        for idx, k in enumerate(clus_center_dict.keys()):
+            self.clus_center_list.append(k)
+            self.clus_truelabel[idx].extend(clus_center_dict[k])
+        self.clus_num = len(clus_center_dict)
+
+def merge_mini_patch(patches_list, thresholed)-> minipatch:
+    """_summary_
+
+    Args:
+        patches_dict (_type_): {name:center_fea}
+    """
+    def merge(buffer, A:int, B:int, thresholed):
+        #寻找相似度高的
+        temp_center_list = []
+        temp_label_list = []
+        new_name = buffer[-1].mini_patch_name + 1
+        a = buffer[A]
+        b = buffer[B]
+        for i in range(a.clus_num):
+            sim_buffer = []#用于存储a[i]和b的所有相似度，万一有多个阈值以上的
+            for j, _ in enumerate(b.clus_center_list):#这样写可以让内层循环的长度随b变化而变化
+                # similarity = F.pairwise_distance(a.clus_center_list[i], b.clus_center_list[j], p=2)
+                similarity = torch.cosine_similarity(a.clus_center_list[i].unsqueeze(0), b.clus_center_list[j].unsqueeze(0))
+                sim_buffer.append(similarity)
+            max_idx = sim_buffer.index(max(sim_buffer))
+            # 大于阈值就融合#取平均
+            if max(sim_buffer) > thresholed:
+                avg = (a.clus_center_list[i] + b.clus_center_list[max_idx]) / 2
+                temp_center_list.append(avg)
+                qq = []
+                qq.extend(a.clus_truelabel[i])
+                qq.extend(b.clus_truelabel[max_idx])
+                temp_label_list.append(qq)
+                b.clus_center_list.pop(max_idx)
+                b.clus_truelabel.pop(max_idx)
+            else:
+                temp_center_list.append(a.clus_center_list[i])
+                temp_label_list.append(a.clus_truelabel[i])
+        #最后将b中和a没有相似度的也加进去
+        temp_center_list.extend(b.clus_center_list)
+        for i in b.clus_truelabel:
+            temp_label_list.append(i)
+        buffer.pop(B)
+        buffer.pop(A)
+        res = {}
+        for idx, center in enumerate(temp_center_list):
+            res[center] = temp_label_list[idx]
+        buffer.append(minipatch(res, new_name))
+            
+    minipatchbuffer = []
+    for idx, clu_centers in enumerate(patches_list):
+        minipatchbuffer.append(minipatch(clu_centers, idx))
+    idx = 0
+    while(len(minipatchbuffer) != 1):
+        merge(minipatchbuffer, 0, 1, thresholed)
+    return minipatchbuffer[0]
 
 
+def evaluate(x:minipatch):
+    labels = x.clus_truelabel
+    total_num = 0
+    true_pred = 0
+    for lb in labels:
+        Count_lb = Counter(lb)
+        pre_lb = list(Count_lb.keys())[0]
+        true_pred += Count_lb[pre_lb]
+        total_num += len(lb)
+    acc = true_pred / total_num
+    return acc
 
 # if __name__  == '__main__':
 #     """

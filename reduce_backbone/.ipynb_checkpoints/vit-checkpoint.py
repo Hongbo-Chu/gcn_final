@@ -32,9 +32,11 @@ class vit(nn.Module):
         self.patch_embed = PatchEmbed(
             img_size=224, patch_size=16, in_chans=3, embed_dim=embed_dim)
         self.pos_drop = nn.Dropout(p=0)
-        self.block = encoderblock( 
+        self.blocks = nn.Sequential(*[
+                encoderblock( 
                 dim=embed_dim, num_heads=3, mlp_ratio=4, qkv_bias=False, drop=0,
                 attn_drop=0, drop_path=0, norm_layer=nn.LayerNorm, act_layer=nn.GELU)
+                    for _ in range(1)])
         self.norm = nn.LayerNorm(embed_dim)
         self.num_tokens = 2 
         self.num_patches = 195
@@ -52,7 +54,7 @@ class vit(nn.Module):
         # else:
         #     x = torch.cat((cls_token, self.dist_token.expand(x.shape[0], -1, -1), x), dim=1)
         x = self.pos_drop(x + self.pos_embed)
-        x = self.block(x)
+        x = self.blocks(x)
         x = self.norm(x)
         x = x[:, 0]
         return x
