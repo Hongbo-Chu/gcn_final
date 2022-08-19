@@ -9,6 +9,8 @@ import torch.nn.functional as F
 import dgl
 from maintrain.utils.utils import Cluster, neighber_type
 import copy
+torch.set_printoptions(threshold=np.inf)
+
 """
 从backbone来的数据：
 1. nodefeature:
@@ -151,7 +153,9 @@ class new_graph:
         self.node_num = len(self.node_fea)
         z = torch.zeros_like(f_ij).to(self.device)
         # print(f"各种大小{f_ij.size()} {p_ij1.size()} {p_ij2.size()} {d_ij.size()} {z.size()}")
-        edge_fea = torch.stack([f_ij, p_ij1, p_ij2, z, z, d_ij])
+        # edge_fea = torch.stack([f_ij, p_ij1, p_ij2, z, z, d_ij])
+        edge_fea = torch.stack([f_ij])
+        edge_pos = torch.stack([p_ij1, p_ij2, z, z, d_ij])
         edge_fea = edge_fea.permute(2, 1, 0) # 大小是3,3,3 其中edge_fea[i][j]就代表了那个点的特征
 
         #此时edge_fea 为 [n, n, edge_fea_dim]
@@ -159,12 +163,14 @@ class new_graph:
             for j in range(self.node_num):
                 e_ij.append(edge_fea[i][j])
         e_ij = torch.stack(e_ij)
+        # print(f"test{e_ij.size()}")
         return e_ij
             
     def init_graph(self, args):
         # e_fea = L2_dist(self.node_fea, self.node_fea)
         e_fea = self.init_edge()
-        e_fea = self.edge_mlp(e_fea).view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
+        # e_fea = self.edge_mlp(e_fea).view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
+        e_fea = e_fea.view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
         #将所有不到阈值的edge_fea归零
 #         print(e_fea)
         # tt = e_fea.view(e_fea.size(0)**2)
@@ -203,9 +209,20 @@ class new_graph:
             fold_nodes.extend(self.fold_dict[i])
         fold_nodes.extend(list(self.fold_dict.keys()))
         print("古典")
+        debug_path = '/root/autodl-tmp/7.26备份/debug.txt'
+        with open(debug_path, "a+") as f:
+            np.set_printoptions(threshold=np.inf)
+            threshold_e_np = threshold_e.cpu().numpy()
+
+            f.write(str(threshold_e_np))
         for i in range(len(threshold_e)):
-            if threshold_e[i].sum() == 0:
-                print(i)
+            count = 0
+            for j in range(len(threshold_e[i])):
+                if threshold_e[i][j] == 0:
+                    count += 1
+            if count == len(threshold_e[i]):
+                print(f"孤点: {i}")
+                    
 
         for i in tqdm(range(self.node_num)): #全连接图
             flag = 0
@@ -282,4 +299,3 @@ if __name__ == '__main__':
     # print(a[0])
     aa = new_graph(wsi, 6)
     aa.init_graph()
-                
