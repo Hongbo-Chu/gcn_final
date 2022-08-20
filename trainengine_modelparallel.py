@@ -155,7 +155,9 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         edge_fea = edge_fea.to(args.device1)
         node_fea = node_fea.to(args.device1)
         predict_nodes = gcn(g, node_fea, edge_fea)
-
+        print("*"*100)
+        print('\n')
+        print(predict_nodes.size())
         loss = criterion(predict_nodes, clu_label, cluster_center_fea, mask_idx, args.mask_weight, sort_idx_rst)
         # loss = criterion(predict_nodes, node_fea)
         print(f"epoch{[epoch]}, loss is:{[loss]}")

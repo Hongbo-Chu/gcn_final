@@ -169,7 +169,7 @@ def run():
     # data loading.
     
 #     model = Model(num_features, 128, num_classes).to(device)
-    seed_everything(114514)
+    seed_everything(114514111)
     args = get_args_parser()
     args = args.parse_args()
     backboneModel = build_model(args.backbone).to(args.device0)

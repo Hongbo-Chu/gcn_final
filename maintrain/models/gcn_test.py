@@ -290,13 +290,22 @@ class GraphConv(nn.Module):
             #通过计算点的相似度更新边
             edge_fea_temp = self.comute_edge(graph, node_fea)
 
-            # 确保a →b == b → a， 对a, b 取平均
+            # 确保a → b == b → a， 对a, b 取平均
             #u: [0, 1, 2,   3, 3, 3], v: [3, 3, 3,    0, 1, 2]
+            # [1,2,3, 4,5,6]
             half_node_num = len(edge_fea_temp) // 2 
             # print(f"试试{edge_fea_temp.size()}, {half_node_num}")
 
             temp = (torch.cat([edge_fea_temp[:half_node_num], edge_fea_temp[:half_node_num]]) + torch.cat([edge_fea_temp[half_node_num:], edge_fea_temp[half_node_num:]])) / 2
-
+            print(temp.size())
+            flag = 0
+            for i in range(len(temp)):
+                if temp[i] != temp[half_node_num + i -1]:
+                    print("hhh")
+                    flag = 1
+            if flag ==0:
+                print("是的对称的")
+            assert False
             #然后片段阈值
             # print(f"统计阈值信息 均值：{temp.mean()} 最大值{temp.max()}，最小值{temp.min()}")
             # qq = sorted(temp)

@@ -140,6 +140,7 @@ class new_graph:
         f_ij = L2_dist(self.node_fea, self.node_fea)#公式中||f_i - f_j||_2
         d_ij = L2_dist(self.d, self.d)#公式中d_ij
         #公式中p_ij
+        #TODO 只算最近邻
         px =  self.d.permute(1, 0)[0] # 所有x坐标
         px1 = px.expand(px.size(0), px.size(0))
         px2 = px1.permute(1, 0)
@@ -191,9 +192,9 @@ class new_graph:
         e_pos_max = e_pos.max()
         e_pos = e_pos / e_pos_max
         #球阈值
-        threshold = e_pos.detach().mean() * 0.5
+        threshold = e_fea.detach().mean() * 0.5
         # 过阈值
-        threshold_e = torch.threshold(e_pos, threshold, 0) + e_fea # size() = n,n
+        threshold_e = torch.threshold(e_fea, threshold, 0) + e_pos # size() = n,n
 
         #然后判断需要增强的邻居节点
         edge_enhance = []
@@ -212,6 +213,15 @@ class new_graph:
         # print(f"用于边增强的矩阵的形状{edge_enhance.size()}")
         #现在的边值是根据周围一圈邻居的值和原edge_fea生成的
         threshold_e = (edge_enhance + threshold_e)
+        debug_path = '/root/autodl-tmp/7.26备份/debug.txt'
+        with open(debug_path, 'a+') as f:
+            f.write("物理维度：\n")
+            f.write('\n')
+            f.write(str(e_pos))
+            f.write('\n')
+            f.write('特征维度：\n')
+            f.write(str(e_fea))
+
         u = []
         v = []
         ee = []
@@ -239,7 +249,7 @@ class new_graph:
         for i in tqdm(range(self.node_num)): #全连接图
             flag = 0
             for j in range(i + 1 ,self.node_num):
-                if threshold_e[i][j] != 0:#判断在阈值之内可以
+                if threshold_e[i][j] != 0:#判断在阈值之内可以 TODO dd
                     # if (i not in list(self.fold_dict.keys())) and (i in fold_nodes or j in fold_nodes):#记录被折叠点的坐标，因为后面添加的点的连接要根据它都包含了哪些点决定
                     #     count_list.append(count)#不用记录具体信息，因为反正这些点都要去掉
                     flag = 1
@@ -255,7 +265,7 @@ class new_graph:
                                 fold_center = f_center
                                 break
                         fold_uv.setdefault(fold_center, {}).setdefault(j, []).append(i)
-                    elif j in fold_nodes and i not in fold_nodes:
+                    elif j in fold_nodes and i not in fold_nodes: # TODO 检查！！！！！！！！
                         fold_center = 0
                         for f_center, f_n in self.fold_dict.items():
                             if j in f_n:
@@ -291,11 +301,11 @@ class new_graph:
         all_uv.extend(v)
         print(f"图中点的数量为{len(set(all_uv))},")
         print(self.graph)
-        ee = torch.cat(ee, dim=0).unsqueeze(1)#最终的edge_fea，是将那些为0的边都去掉了
+        ee = torch.cat(ee, dim=0).unsqueeze(1)#最终的edge_fea，是将那些为0的边都去掉了 1xn的list -> 1xn的tensor
         ee = torch.cat([ee,ee], dim =0)
         # print(f"提取的边的特征：{ee.size()}")
         # print(f"建完的图{self.graph}")
-        # print(f"edge_fea{ee.size()}")
+        # print(f"edge_fea{ee.size()}") #TODO检查对称
         return self.graph, (u, v), ee
 
 
