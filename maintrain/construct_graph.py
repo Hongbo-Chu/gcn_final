@@ -1,5 +1,3 @@
-from ast import arg
-from errno import EFAULT
 from os import rename
 import numpy as np
 import torch
@@ -124,7 +122,7 @@ class new_graph:
         self.fold_dict = fold_dict.fold_dict
         self.d = [] #javed 公式中的d
         for idx in range(len(wsi)):
-            self.d.append(torch.tensor(list(wsi[idx][1])).float().unsqueeze(0))
+            self.d.append(torch.tensor(list(wsi[idx][2])).float().unsqueeze(0))
         self.d = torch.cat(self.d, dim = 0).to(self.device)
         self.node_fea = node_fea
         self.node_num = len(self.node_fea)
@@ -136,6 +134,7 @@ class new_graph:
         """初始化边，参考javed
         """
         e_ij = []
+        e_pos = []
         #仿照javed公式写(r,c,h,w)分别代表了 左上角的坐标和图像的高和宽
         h = w = 128
         f_ij = L2_dist(self.node_fea, self.node_fea)#公式中||f_i - f_j||_2
@@ -157,27 +156,38 @@ class new_graph:
         edge_fea = torch.stack([f_ij])
         edge_pos = torch.stack([p_ij1, p_ij2, z, z, d_ij])
         edge_fea = edge_fea.permute(2, 1, 0) # 大小是3,3,3 其中edge_fea[i][j]就代表了那个点的特征
-
+        edge_pos = edge_pos.permute(2, 1, 0)
+        edeg_pos = self.edge_mlp(edge_pos)
+        edge_fea = edge_fea.view(1, -1)
+        edge_pos = edge_pos.view(1, -1)
         #此时edge_fea 为 [n, n, edge_fea_dim]
-        for i in tqdm(range(self.node_num)): #全连接图
-            for j in range(self.node_num):
-                e_ij.append(edge_fea[i][j])
-        e_ij = torch.stack(e_ij)
+        # for i in tqdm(range(self.node_num)): #全连接图
+        #     for j in range(self.node_num):
+        #         e_ij.append(edge_fea[i][j])
+        #         e_pos.append(edge_pos[i][j])
+        # e_ij = torch.stack(e_ij)
+        # e_pos = torch.stack(e_pos)
         # print(f"test{e_ij.size()}")
-        return e_ij
+        #e_ij是特征维度的矩阵， e_pos是物理维度的矩阵
+
+        return e_ij, e_pos
             
     def init_graph(self, args):
         # e_fea = L2_dist(self.node_fea, self.node_fea)
-        e_fea = self.init_edge()
+        e_fea, e_pos = self.init_edge()
         # e_fea = self.edge_mlp(e_fea).view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
         e_fea = e_fea.view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
+        e_pos = self.edge_mlp(e_pos).view(self.node_num, self.node_num)
+        print(e_pos)
+        assert False
         #将所有不到阈值的edge_fea归零
 #         print(e_fea)
         # tt = e_fea.view(e_fea.size(0)**2)
         # print("算我呢")
         # threshold = sorted(tt)[len(tt)//2]
         # print("caisaunwa")
-        threshold_e = e_fea#torch.threshold(e_fea, 0.4, 0)#size() = n,n
+        pos_
+        threshold_e = torch.threshold(e_fea, 0.4, 0) + e_pos#size() = n,n
         # for i in range(len(threshold_e)):
         #     threshold_e[i][i] = 0
         # print(threshold_e[3])
@@ -209,12 +219,12 @@ class new_graph:
             fold_nodes.extend(self.fold_dict[i])
         fold_nodes.extend(list(self.fold_dict.keys()))
         print("古典")
-        debug_path = '/root/autodl-tmp/7.26备份/debug.txt'
-        with open(debug_path, "a+") as f:
-            np.set_printoptions(threshold=np.inf)
-            threshold_e_np = threshold_e.cpu().numpy()
+        # debug_path = '/root/autodl-tmp/7.26备份/debug.txt'
+        # with open(debug_path, "a+") as f:
+        #     np.set_printoptions(threshold=np.inf)
+        #     threshold_e_np = threshold_e.cpu().numpy()
 
-            f.write(str(threshold_e_np))
+            # f.write(str(threshold_e_np))
         for i in range(len(threshold_e)):
             count = 0
             for j in range(len(threshold_e[i])):
