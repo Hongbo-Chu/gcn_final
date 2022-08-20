@@ -157,9 +157,9 @@ class new_graph:
         edge_pos = torch.stack([p_ij1, p_ij2, z, z, d_ij])
         edge_fea = edge_fea.permute(2, 1, 0) # 大小是3,3,3 其中edge_fea[i][j]就代表了那个点的特征
         edge_pos = edge_pos.permute(2, 1, 0)
-        edeg_pos = self.edge_mlp(edge_pos)
-        edge_fea = edge_fea.view(1, -1)
-        edge_pos = edge_pos.view(1, -1)
+        edge_pos = self.edge_mlp(edge_pos)
+        edge_fea = edge_fea.contiguous().view(1, -1)
+        edge_pos = edge_pos.contiguous().view(1, -1)
         #此时edge_fea 为 [n, n, edge_fea_dim]
         # for i in tqdm(range(self.node_num)): #全连接图
         #     for j in range(self.node_num):
@@ -170,28 +170,30 @@ class new_graph:
         # print(f"test{e_ij.size()}")
         #e_ij是特征维度的矩阵， e_pos是物理维度的矩阵
 
-        return e_ij, e_pos
+        return edge_fea, edge_pos
             
     def init_graph(self, args):
         # e_fea = L2_dist(self.node_fea, self.node_fea)
         e_fea, e_pos = self.init_edge()
         # e_fea = self.edge_mlp(e_fea).view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
         e_fea = e_fea.view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
-        e_pos = self.edge_mlp(e_pos).view(self.node_num, self.node_num)
-        print(e_pos)
-        assert False
+        e_pos = e_pos.view(self.node_num, self.node_num)
+        e_pos[e_pos == 0] = 0.001#防止溢出
+        e_pos = 1 / e_pos
         #将所有不到阈值的edge_fea归零
 #         print(e_fea)
         # tt = e_fea.view(e_fea.size(0)**2)
         # print("算我呢")
         # threshold = sorted(tt)[len(tt)//2]
-        # print("caisaunwa")
-        pos_
-        threshold_e = torch.threshold(e_fea, 0.4, 0) + e_pos#size() = n,n
-        # for i in range(len(threshold_e)):
-        #     threshold_e[i][i] = 0
-        # print(threshold_e[3])
-        # print(threshold_e[240])
+        #归一化
+        e_pos_min = e_pos.min() 
+        e_pos = e_pos - e_pos_min
+        e_pos_max = e_pos.max()
+        e_pos = e_pos / e_pos_max
+        #球阈值
+        threshold = e_pos.detach().mean() * 0.5
+        # 过阈值
+        threshold_e = torch.threshold(e_pos, threshold, 0) + e_fea # size() = n,n
 
         #然后判断需要增强的邻居节点
         edge_enhance = []
@@ -209,7 +211,7 @@ class new_graph:
         edge_enhance = torch.cat(edge_enhance, dim=0).to(self.device)
         # print(f"用于边增强的矩阵的形状{edge_enhance.size()}")
         #现在的边值是根据周围一圈邻居的值和原edge_fea生成的
-        # threshold_e = (edge_enhance + threshold_e)
+        threshold_e = (edge_enhance + threshold_e)
         u = []
         v = []
         ee = []
