@@ -158,16 +158,16 @@ class new_graph:
         #先建立{(x, y): idx}，用于根据位置检索邻居的idx
         pos_idx_dict = {}
         for i in range(len(self.wsi_dic)):
-            pos = wsi[i][2]
+            pos = self.wsi_dic[i][2]
             pos_idx_dict[tuple(pos)] = i
         for i in range(len(p_ij1)):
             #只保留近邻的值
             #先计算邻居的idx
             pos = self.wsi_dic[i][2]
             nei_idx = neighber_idx(pos, 1, pos_idx_dict)
-            temp = [k if idx in nei_idx else 0 for idx, k in enumerate(p_ij1[i])]
+            temp = torch.tensor([k if idx in nei_idx else 0 for idx, k in enumerate(p_ij1[i])])
             p_ij1[i] = temp
-            temp = [k if idx in nei_idx else 0 for idx, k in enumerate(p_ij2[i])]
+            temp = torch.tensor([k if idx in nei_idx else 0 for idx, k in enumerate(p_ij2[i])])
             p_ij2[i] = temp
 
         self.node_num = len(self.node_fea)

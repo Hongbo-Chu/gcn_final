@@ -295,17 +295,16 @@ class GraphConv(nn.Module):
             # [1,2,3, 4,5,6]
             half_node_num = len(edge_fea_temp) // 2 
             # print(f"试试{edge_fea_temp.size()}, {half_node_num}")
-
-            temp = (torch.cat([edge_fea_temp[:half_node_num], edge_fea_temp[:half_node_num]]) + torch.cat([edge_fea_temp[half_node_num:], edge_fea_temp[half_node_num:]])) / 2
+            temp = edge_fea_temp[:half_node_num] + edge_fea_temp[-half_node_num:]
+            temp = torch.cat([temp, temp], dim = 0)
+            # temp = (torch.cat([edge_fea_temp[:half_node_num], edge_fea_temp[:half_node_num]]) + torch.cat([edge_fea_temp[half_node_num:], edge_fea_temp[half_node_num:]])) / 2
             print(temp.size())
             flag = 0
-            for i in range(len(temp)):
-                if temp[i] != temp[half_node_num + i -1]:
-                    print("hhh")
+            for i in range(half_node_num):
+                if temp[i] != temp[half_node_num + i]:
                     flag = 1
             if flag ==0:
                 print("是的对称的")
-            assert False
             #然后片段阈值
             # print(f"统计阈值信息 均值：{temp.mean()} 最大值{temp.max()}，最小值{temp.min()}")
             # qq = sorted(temp)
