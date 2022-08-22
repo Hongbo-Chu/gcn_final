@@ -422,6 +422,22 @@ def neighber_type(pos, n, pos_dict):
                 neighbers.append(pos_dict[(i,j)])
     return Counter(neighbers), len(list(Counter(neighbers).keys()))
 
+def neighber_idx(pos, n, pos_idx_dict):
+    """返回周围n圈邻居的idx
+
+    Args:
+        pos (tuple(x, y)): 点的坐标
+        n (int): 几圈邻居
+        pos_dict: 用于存储所有点信息的字典{(x, y): idx}
+    returns:
+        nei_list:周围n圈邻居的idx组成的列表
+    """
+    neighbers = []
+    for i in range(pos[0]-n, pos[0]+n+1):
+        for j in range(pos[1]-n, pos[1]+n+1):
+            if (i, j) in list(pos_idx_dict.keys()):
+                neighbers.append(pos_idx_dict[(i,j)])
+    return neighbers
 
 
 def compute_pys_feature(wsi, n):

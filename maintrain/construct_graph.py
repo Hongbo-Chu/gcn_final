@@ -5,7 +5,7 @@ from tqdm import tqdm
 from collections import Counter
 import torch.nn.functional as F
 import dgl
-from maintrain.utils.utils import Cluster, neighber_type
+from maintrain.utils.utils import Cluster, neighber_idx
 import copy
 torch.set_printoptions(threshold=np.inf)
 
@@ -144,12 +144,32 @@ class new_graph:
         px =  self.d.permute(1, 0)[0] # 所有x坐标
         px1 = px.expand(px.size(0), px.size(0))
         px2 = px1.permute(1, 0)
-        py = self.d.permute(1, 0 )[1] # 所有的y坐标
+        py = self.d.permute(1, 0)[1] # 所有的y坐标
         py1 = py.expand(py.size(0), py.size(0))
         py2 = py1.permute(1, 0) # 
         p_ij1 = ((px1 - px2) / h)
         p_ij2 = ((py1 - py2) / h)
         #这里需要每个分量都是N * N
+
+        # 只有近邻有P值
+        #reshape一下，方便操作 先空着
+        p_ij1 = p_ij1.view(self.node_num, self.node_num)
+        p_ij2 = p_ij2.view(self.node_num, self.node_num)
+        #先建立{(x, y): idx}，用于根据位置检索邻居的idx
+        pos_idx_dict = {}
+        for i in range(len(self.wsi_dic)):
+            pos = wsi[i][2]
+            pos_idx_dict[tuple(pos)] = i
+        for i in range(len(p_ij1)):
+            #只保留近邻的值
+            #先计算邻居的idx
+            pos = self.wsi_dic[i][2]
+            nei_idx = neighber_idx(pos, 1, pos_idx_dict)
+            temp = [k if idx in nei_idx else 0 for idx, k in enumerate(p_ij1[i])]
+            p_ij1[i] = temp
+            temp = [k if idx in nei_idx else 0 for idx, k in enumerate(p_ij2[i])]
+            p_ij2[i] = temp
+
         self.node_num = len(self.node_fea)
         z = torch.zeros_like(f_ij).to(self.device)
         # print(f"各种大小{f_ij.size()} {p_ij1.size()} {p_ij2.size()} {d_ij.size()} {z.size()}")
@@ -170,15 +190,13 @@ class new_graph:
         # e_pos = torch.stack(e_pos)
         # print(f"test{e_ij.size()}")
         #e_ij是特征维度的矩阵， e_pos是物理维度的矩阵
-
-        return edge_fea, edge_pos
+        #[n^2, 6] --> [n, n]
+        return edge_fea.view(self.node_num, self.node_num), edge_pos.view(self.node_num, self.node_num)
             
     def init_graph(self, args):
         # e_fea = L2_dist(self.node_fea, self.node_fea)
         e_fea, e_pos = self.init_edge()
         # e_fea = self.edge_mlp(e_fea).view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
-        e_fea = e_fea.view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
-        e_pos = e_pos.view(self.node_num, self.node_num)
         e_pos[e_pos == 0] = 0.001#防止溢出
         e_pos = 1 / e_pos
         #将所有不到阈值的edge_fea归零
