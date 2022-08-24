@@ -140,7 +140,7 @@ class new_graph:
         f_ij = L2_dist(self.node_fea, self.node_fea)#公式中||f_i - f_j||_2
         d_ij = L2_dist(self.d, self.d)#公式中d_ij
         #公式中p_ij
-        #TODO 只算最近邻
+        #DONE 只算最近邻
         px =  self.d.permute(1, 0)[0] # 所有x坐标
         px1 = px.expand(px.size(0), px.size(0))
         px2 = px1.permute(1, 0)
@@ -267,29 +267,29 @@ class new_graph:
         for i in tqdm(range(self.node_num)): #全连接图
             flag = 0
             for j in range(i + 1 ,self.node_num):
-                if threshold_e[i][j] != 0:#判断在阈值之内可以 TODO dd
-                    # if (i not in list(self.fold_dict.keys())) and (i in fold_nodes or j in fold_nodes):#记录被折叠点的坐标，因为后面添加的点的连接要根据它都包含了哪些点决定
-                    #     count_list.append(count)#不用记录具体信息，因为反正这些点都要去掉
-                    flag = 1
-                    if i not in fold_nodes and j not in fold_nodes:
-                        u.append(i)
-                        v.append(j)
-                        ee.append((threshold_e[i][j]).unsqueeze(0))
-                        
-                    elif i in fold_nodes and j not in fold_nodes:
-                        fold_center = 0
-                        for f_center, f_n in self.fold_dict.items():
-                            if i in f_n:
-                                fold_center = f_center
-                                break
-                        fold_uv.setdefault(fold_center, {}).setdefault(j, []).append(i)
-                    elif j in fold_nodes and i not in fold_nodes: # TODO 检查！！！！！！！！
-                        fold_center = 0
-                        for f_center, f_n in self.fold_dict.items():
-                            if j in f_n:
-                                fold_center = f_center
-                                break
-                        fold_uv.setdefault(fold_center, {}).setdefault(i, []).append(j)
+                # if threshold_e[i][j] != 0:#判断在阈值之内可以 TODO dd
+                # if (i not in list(self.fold_dict.keys())) and (i in fold_nodes or j in fold_nodes):#记录被折叠点的坐标，因为后面添加的点的连接要根据它都包含了哪些点决定
+                #     count_list.append(count)#不用记录具体信息，因为反正这些点都要去掉
+                flag = 1
+                if i not in fold_nodes and j not in fold_nodes:
+                    u.append(i)
+                    v.append(j)
+                    ee.append((threshold_e[i][j]).unsqueeze(0))
+                    
+                elif i in fold_nodes and j not in fold_nodes:
+                    fold_center = 0
+                    for f_center, f_n in self.fold_dict.items():
+                        if i in f_n:
+                            fold_center = f_center
+                            break
+                    fold_uv.setdefault(fold_center, {}).setdefault(j, []).append(i)
+                # elif j in fold_nodes and i not in fold_nodes: # DONE 检查！！！！！！！！
+                #     fold_center = 0
+                #     for f_center, f_n in self.fold_dict.items():
+                #         if j in f_n:
+                #             fold_center = f_center
+                #             break
+                #     fold_uv.setdefault(fold_center, {}).setdefault(i, []).append(j)
             wtf = []
             if flag == 0:
                 print("wtf")
