@@ -231,7 +231,12 @@ class new_graph:
         # print(f"用于边增强的矩阵的形状{edge_enhance.size()}")
         #现在的边值是根据周围一圈邻居的值和原edge_fea生成的
         threshold_e = (edge_enhance + threshold_e)
-        debug_path = '/root/autodl-tmp/debuging/debug.txt'
+        for i in range(len(threshold_e)):
+            for j in range(i+1, len(threshold_e)):
+                val_mean = ( threshold_e[i][j] + threshold_e[j][i]) / 2
+                threshold_e[i][j] = val_mean
+                threshold_e[j][i] = val_mean
+        debug_path = '/root/autodl-tmp/7.26备份/debug.txt'
         with open(debug_path, 'a+') as f:
             f.write("物理维度：\n")
             f.write('\n')
@@ -255,6 +260,12 @@ class new_graph:
         #     threshold_e_np = threshold_e.cpu().numpy()
 
             # f.write(str(threshold_e_np))
+
+        #判断是否对称
+        threshold_e_t = threshold_e.permute(1, 0)
+        judge = ((threshold_e == threshold_e_t).sum() == 90000)
+        if judge:
+            print("threshold_e是对称矩阵")
         for i in range(len(threshold_e)):
             count = 0
             for j in range(len(threshold_e[i])):
@@ -263,7 +274,7 @@ class new_graph:
             if count == len(threshold_e[i]):
                 print(f"孤点: {i}")
                     
-
+        
         for i in tqdm(range(self.node_num)): #全连接图
             flag = 0
             for j in range(i + 1 ,self.node_num):
@@ -325,6 +336,13 @@ class new_graph:
         # print(f"建完的图{self.graph}")
         # print(f"edge_fea{ee.size()}") #TODO检查对称
         print(f"入度矩阵为{self.graph.in_degrees().size()}, 出度矩阵为{self.graph.out_degrees().size()}")
+        debug_path = '/root/autodl-tmp/7.26备份/debug.txt'
+        with open(debug_path, 'a+') as f:
+            f.write("src: \n")
+            f.write(str(u))
+            f.write('\n')
+            f.write(str(v))
+            f.write('\n')
         return self.graph, (u, v), ee
 
 

@@ -137,7 +137,7 @@ def update_fold_dic(stable_dic: stable_dict, fold_dic: fold_dict, node_fea):
     # print(stable_dic.stable_dic)
     # print("*"*100)
     # print(fold_dic.fold_dict)
-    fold_path = '/root/autodl-tmp/debuging/fold2.txt'
+    fold_path = '/root/autodl-tmp//7.26备份/fold2.txt'
     with open(fold_path, 'a+') as f:
         f.write('stable_dic')
         f.write(str(stable_dic.stable_dic))

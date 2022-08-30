@@ -129,6 +129,10 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         else:
             optimizer = unfreeze(backbone, gcn, graph_mlp, args)
 
+        debug_path = '/root/autodl-tmp/7.26备份/debug.txt'
+        with open(debug_path, 'a+') as f:
+            f.write("minipatch" + str(mini_patch) + "epoch" + str(epoch) + '\n')
+
         #training
         node_fea = backbone(input_img)
         node_fea_detach = node_fea.clone().detach()#从计算图中剥离

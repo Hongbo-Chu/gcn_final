@@ -258,8 +258,11 @@ class GraphConv(nn.Module):
     def forward(self, graph, node_fea, edge_fea):
         print("gcov forward")
         with graph.local_scope():
-            feat_src, feat_dst = expand_as_pair(node_fea, graph)#用于支持二分图
+            feat_src, feat_dst = expand_as_pair(node_fea, graph)#用于支持二分图 其实feat_src 就是 node_feadgl 
             degs = graph.out_degrees().float().clamp(min=1)#计算节点的出度矩阵
+            
+
+
             print(len(degs))
             norm = torch.pow(degs, -0.5) #计算C_ij,归一化用
             shp = norm.shape + (1,) * (feat_src.dim() - 1)#resahpe
