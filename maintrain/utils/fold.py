@@ -50,27 +50,48 @@ class fold_dict:
             ，若不是则创建新点,在创建图的时候只要判断新加的点是否为空就行了，为空的话就不用添加边了。
 
             v2.0： 折叠后的新点不再是新产生的，而是已有的点中和他相似度最高的点。
+            v2.1: 添加新的cluster的时候，是根据这个cluster和已有的fold_cluster中的相似程度来判断添加到哪个当中去。
         Args:
             node (list): 被折叠的点的list
         """
         nn = new_node
         #先判断是新产生一个折叠的点，还是像已有的点中添加信息
-        re_fold_nodes = set(new_node) & set(self.fold_dict.keys())
-        if len(re_fold_nodes) == 0: #新产生
-            #计算折叠后的点的新id，从所有点中选出一个相似度最大的点
+        # re_fold_nodes = set(new_node) & set(self.fold_dict.keys())
+        #判断添加到哪个cluster
+        target_cluster = -1
+        target_num = 0
+        for k, v in self.fold_dict.items():
+            n_num = len(set(v) & set(new_node))
+            if n_num > target_cluster:
+                target_num = n_num
+                target_cluster = k
+        
+        #直接向该cluster中添加nodes
+        if target_num == 0:
+            #fold_dict空，或者这是一个新的cluster
             center_node, center_node_fea = self.compute_fold_id(nn, node_fea)
             self.fold_dict[center_node] = nn
             self.fold_node_fea[center_node] = center_node_fea
-        else: #若果新折叠的点中包含已经被折叠的点
-            node_tobe_fold = []
-            for i in re_fold_nodes:
-                node_tobe_fold.extend(self.fold_dict[i])
-                node_tobe_fold.extend([i])
-                ##同时旧的折叠字典中去除这些点
-                self.fold_dict.pop(i)
-            center_node, center_node_fea = self.compute_fold_id(node_tobe_fold, node_fea)
-            self.fold_dict[center_node] = node_tobe_fold
-            self.fold_node_fea[center_node] = center_node_fea
+        else:
+            # 不是新添加的
+            self.fold_dict[target_cluster].extend(nn)
+            #去重
+            self.fold_dict[target_cluster] = list(set(self.fold_dict[target_cluster]))
+        # if len(re_fold_nodes) == 0: #新产生
+        #     #计算折叠后的点的新id，从所有点中选出一个相似度最大的点
+        #     center_node, center_node_fea = self.compute_fold_id(nn, node_fea)
+        #     self.fold_dict[center_node] = nn
+        #     self.fold_node_fea[center_node] = center_node_fea
+        # else: #若果新折叠的点中包含已经被折叠的点
+        #     node_tobe_fold = []
+        #     for i in re_fold_nodes:
+        #         node_tobe_fold.extend(self.fold_dict[i])
+        #         # node_tobe_fold.extend([i])
+        #         ##同时旧的折叠字典中去除这些点
+        #         self.fold_dict.pop(i)
+        #     center_node, center_node_fea = self.compute_fold_id(node_tobe_fold, node_fea)
+        #     self.fold_dict[center_node] = node_tobe_fold
+        #     self.fold_node_fea[center_node] = center_node_fea
 class stable_dict:
     """format
         {clus_label:[nodes]}
@@ -111,9 +132,20 @@ def update_fold_dic(stable_dic: stable_dict, fold_dic: fold_dict, node_fea):
     """根据stble_dic来更新fold_dic
         更新完成后stable_dic清零
     """
-    print("更新折叠字典")
+    # print("更新折叠字典")
     old_dic = copy.deepcopy(fold_dic.fold_dict)
-    print(stable_dic.stable_dic)
+    # print(stable_dic.stable_dic)
+    # print("*"*100)
+    # print(fold_dic.fold_dict)
+    fold_path = '/root/autodl-tmp/debuging/fold2.txt'
+    with open(fold_path, 'a+') as f:
+        f.write('stable_dic')
+        f.write(str(stable_dic.stable_dic))
+        f.write('\n')
+        f.write('folddic:')
+        f.write(str(fold_dic.fold_dict))
+        f.write('\n')
+        f.write('\n')
     #更新内容：
     for sta in stable_dic.stable_dic.keys():
         if len(stable_dic.stable_dic[sta]) >= 2:
@@ -124,7 +156,14 @@ def update_fold_dic(stable_dic: stable_dict, fold_dic: fold_dict, node_fea):
             new_dic[k_new] = list(set(fold_dic.fold_dict[k_new]) - set(old_dic[k_new]))
         else:
             new_dic[k_new] = fold_dic.fold_dict[k_new]
-    for k, v in new_dic.items():
-        if v != []:
-            print(f"中心点{k}, 更新了{v}")
+    with open(fold_path, "a+") as f:
+        for k, v in new_dic.items():
+            if v != []:
+                # print(f"中心点{k}, 更新了{v}")
+                f.write("中心点"+str(k) + "更新了" + str(v))
+                f.write('\n')
+        f.write("*"*100)
+        f.write('\n')
+        f.write('\n')
+        f.write('\n')
     stable_dic.reset()

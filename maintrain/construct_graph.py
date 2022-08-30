@@ -231,14 +231,14 @@ class new_graph:
         # print(f"用于边增强的矩阵的形状{edge_enhance.size()}")
         #现在的边值是根据周围一圈邻居的值和原edge_fea生成的
         threshold_e = (edge_enhance + threshold_e)
-        debug_path = '/root/autodl-tmp/7.26备份/debug.txt'
+        debug_path = '/root/autodl-tmp/debuging/debug.txt'
         with open(debug_path, 'a+') as f:
             f.write("物理维度：\n")
             f.write('\n')
             f.write(str(e_pos))
             f.write('\n')
             f.write('特征维度：\n')
-            f.write(str(e_fea))
+            f.write(str(e_fea)) 
 
         u = []
         v = []
@@ -324,6 +324,7 @@ class new_graph:
         # print(f"提取的边的特征：{ee.size()}")
         # print(f"建完的图{self.graph}")
         # print(f"edge_fea{ee.size()}") #TODO检查对称
+        print(f"入度矩阵为{self.graph.in_degrees().size()}, 出度矩阵为{self.graph.out_degrees().size()}")
         return self.graph, (u, v), ee
 
 
