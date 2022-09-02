@@ -18,12 +18,13 @@ import torch
 import torch.nn.functional as F
 import copy
 class fold_dict:
-    def __init__(self) -> None:
+    def __init__(self, n) -> None:
         """fold_dict:用于存储每个折叠后新产生的点是由哪些点组成
             next_id: 下一个新产生的被折叠的点的id
         """
         self.fold_dict = {}
         self.fold_node_fea = {}
+        self.num_stable = n # 稳定n轮再加进去
 
     def compute_fold_id(self,nodes_id, node_fea):
         """
@@ -189,8 +190,11 @@ def update_fold_dic(stable_dic: stable_dict, fold_dic: fold_dict, node_fea):
         f.write('\n')
     #更新内容：
     for sta in stable_dic.stable_dic.keys():
-        if len(stable_dic.stable_dic[sta]) >= 2:
-            fold_dic.add_element(stable_dic.stable_dic[sta], node_fea)
+        #先选出稳定n轮的点
+        stable_nodes = []
+        stable_idx = [idx for (num, idx) in zip(sta[1], sta[0]) if num == fold_dic.num_stable]
+        #加到folddic中
+        fold_dic.add_element(stable_idx, node_fea)
     new_dic = {}
     for k_new, v_new in fold_dic.fold_dict.items():
         if k_new in list(old_dic.keys()):
