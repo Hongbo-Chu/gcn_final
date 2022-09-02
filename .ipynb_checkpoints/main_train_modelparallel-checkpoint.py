@@ -20,13 +20,26 @@ from maintrain.models.loss import myloss
 from maintrain.utils.utils import merge_mini_patch, evaluate
 from evaluate import evaluate_wsi
 
+def seed_everything(seed: int):
+    import random, os
+    import numpy as np
+    import torch
+    
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
+
 
 def get_args_parser():
     parser = argparse.ArgumentParser(description='PyTorch implementation')
     parser.add_argument('--training_wsi', type=str, default="43",
                         help='which gpu to use if any (default: 0)')
 
-    parser.add_argument('--wsi_folder', type=str, default="/root/autodl-tmp/wsi_training",
+    parser.add_argument('--wsi_folder', type=str, default="/root/autodl-tmp/training_wsi",
                         help='which gpu to use if any (default: 0)')
 
     parser.add_argument('--device0', type=str, default="cuda:0",
@@ -88,11 +101,11 @@ def get_args_parser():
     parser.add_argument('--weight_fold', type=float, default=0.2,
                 help='在更新图的过程中当前轮数点的相似度，和上一轮中连接情况的比例')
     
-    parser.add_argument('--log_folder', type=str, default='/root/autodl-tmp/ttt/runs/logs',
+    parser.add_argument('--log_folder', type=str, default='/root/autodl-tmp/7.26备份/runs/logs',
             help='日志存储文件夹')
-    parser.add_argument('--weight_folder', type=str, default='/root/autodl-tmp/ttt/runs/weights',
+    parser.add_argument('--weight_folder', type=str, default='/root/autodl-tmp/7.26备份/runs/weights',
             help='模型存储文件夹')
-    parser.add_argument('--save_folder_test', type=str, default='/root/autodl-tmp/ttt/runs/test',
+    parser.add_argument('--save_folder_test', type=str, default='/root/autodl-tmp/7.26备份/runs/test',
             help='模型存储文件夹')
     return parser
 
@@ -156,21 +169,22 @@ def run():
     # data loading.
     
 #     model = Model(num_features, 128, num_classes).to(device)
+    seed_everything(114514111)
     args = get_args_parser()
     args = args.parse_args()
     backboneModel = build_model(args.backbone).to(args.device0)
-    graph_mlp = g_mlp(in_dim=6, hid_dim=16, out_dim = 1).to(args.device1)
+    graph_mlp = g_mlp(in_dim=5, hid_dim=16, out_dim = 1).to(args.device1)
     graph_model = GCN(in_dim=args.embeding_dim, num_hidden=128, out_dim=args.embeding_dim, num_layers=6, dropout=0,activation="prelu", residual=True,norm=nn.LayerNorm).to(args.device1)
     criterion = myloss().to(args.device1)
     
     #加载预训练参数
-    path = '../mae-multi3/output_pretrain_256/checkpoint-85.pth'
-    pretrain_model_dic = torch.load(path)
-#     print(list(backboneModel.state_dict().keys()))
-    #找共同的参数
-    same_param = {k:v for k, v in pretrain_model_dic['model'].items() if k in list(backboneModel.state_dict().keys())}
-    backboneModel.load_state_dict(same_param)
-    print(f"load params:{same_param.keys()}")
+#     path = '../mae-multi3/output_pretrain_256/checkpoint-85.pth'
+#     pretrain_model_dic = torch.load(path)
+# #     print(list(backboneModel.state_dict().keys()))
+#     #找共同的参数
+#     same_param = {k:v for k, v in pretrain_model_dic['model'].items() if k in list(backboneModel.state_dict().keys())}
+#     backboneModel.load_state_dict(same_param)
+    # print(f"load params:{same_param.keys()}")
     for epoch in range(200):
         img_load_path = os.path.join(args.wsi_folder, (args.training_wsi+ '.pt'))
         dict_load_path = os.path.join(args.wsi_folder, (args.training_wsi + '.npy'))

@@ -194,6 +194,7 @@ class new_graph:
         return edge_fea.view(self.node_num, self.node_num), edge_pos.view(self.node_num, self.node_num)
             
     def init_graph(self, args):
+        debug_path = '/root/autodl-tmp/7.26备份/debug.txt'
         # e_fea = L2_dist(self.node_fea, self.node_fea)
         e_fea, e_pos = self.init_edge()
         # e_fea = self.edge_mlp(e_fea).view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
@@ -236,7 +237,7 @@ class new_graph:
                 val_mean = ( threshold_e[i][j] + threshold_e[j][i]) / 2
                 threshold_e[i][j] = val_mean
                 threshold_e[j][i] = val_mean
-        debug_path = '/root/autodl-tmp/7.26备份/debug.txt'
+        
         with open(debug_path, 'a+') as f:
             f.write("物理维度：\n")
             f.write('\n')
@@ -244,6 +245,9 @@ class new_graph:
             f.write('\n')
             f.write('特征维度：\n')
             f.write(str(e_fea)) 
+            f.write('\n')
+            f.write('threshold：\n')
+            f.write(str(threshold_e))
 
         u = []
         v = []
@@ -266,13 +270,15 @@ class new_graph:
         judge = ((threshold_e == threshold_e_t).sum() == 90000)
         if judge:
             print("threshold_e是对称矩阵")
+
+        
         for i in range(len(threshold_e)):
             count = 0
             for j in range(len(threshold_e[i])):
                 if threshold_e[i][j] == 0:
                     count += 1
             if count == len(threshold_e[i]):
-                print(f"孤点: {i}")
+                print(f"孤点3: {i}")
                     
         
         for i in tqdm(range(self.node_num)): #全连接图

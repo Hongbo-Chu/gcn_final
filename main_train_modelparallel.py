@@ -36,7 +36,7 @@ def seed_everything(seed: int):
 
 def get_args_parser():
     parser = argparse.ArgumentParser(description='PyTorch implementation')
-    parser.add_argument('--training_wsi', type=str, default="46",
+    parser.add_argument('--training_wsi', type=str, default="43",
                         help='which gpu to use if any (default: 0)')
 
     parser.add_argument('--wsi_folder', type=str, default="/root/autodl-tmp/training_wsi",

@@ -51,6 +51,7 @@ class fold_dict:
 
             v2.0： 折叠后的新点不再是新产生的，而是已有的点中和他相似度最高的点。
             v2.1: 添加新的cluster的时候，是根据这个cluster和已有的fold_cluster中的相似程度来判断添加到哪个当中去。
+            v2.2: 新点稳定n轮之后才加进去，加进去之在stabledic中就不会出现了。
         Args:
             node (list): 被折叠的点的list
         """
@@ -98,21 +99,60 @@ class stable_dict:
     """
     def __init__(self) -> None:
         self.stable_dic = {}
+        self.stable_epoch = 0 #用于记录稳定的轮数 初始化为零，每添加一次加一
     def add_stable_idx(self, fes_center, pys_center, clus_label):
         """维护一个stable_list，用于按照累别存放不同类中稳定的点，这些点将在最后被折叠
             如果连续超过n次(要包含最后一次)都出现的话就算稳定
-            v2.0 为了简单起见，目前先每mask一下就折叠一次
-
+            v2.1 添加对于稳定次数的记录
+                新数据结构：{clus_idx:[[idx, idx, idx,...], [num, num, num,...]]}
+                用于记录可能被折叠的点的稳定的次数
+                1. 旧的没有出现的点要被踢出去，
+                2. 重复出现的点加一
+                3. 新来的点置一
         Args:
             fes_center (_type_): _description_
             pys_center (_type_): _description_
         """
         
-        stable_idx = list(set(fes_center) & set(pys_center))
+        new_idx = list(set(fes_center) & set(pys_center))
         # print(set(fes_center))
         # print(set(pys_center))
         # print(f"要添加这些点{stable_idx}")
-        self.stable_dic[clus_label] = stable_idx
+        #找出stable_dict中的同一类
+        #同时也有可能产生一个新的聚类中心
+        count = 0
+        key = -1
+        for k, v in self.stable_dic.items():
+            intersection = set(v[0]) & set(new_idx) #计算交集
+            if intersection > count:
+                count = intersection
+                key = k
+        if key != -1:
+            """不是新产生的cluster
+                将intersection 和 new_node 拼接一下
+                要先吧intersection挑出来
+            """
+            new_stable_dict_idx = [] # 新的稳定字典
+            new_stable_dict_num = [] # 稳定的次数
+            new_stable_dict_idx.extend(list(set(self.stable_dic[key][0]) & set(new_idx)))
+            new_nodes = set(new_idx) - set(self.stable_dic[key][0])
+            stable_num = []
+            for i in new_stable_dict_idx:
+                idx = self.stable_dic[key][0].index(i)
+                new_stable_dict_num.append(self.stable_dic[key][1][idx])
+            #stable_num + 1 
+            new_stable_dict_num = [i+1 for i in new_stable_dict_num]
+            #将这轮新的点加进来
+            new_stable_dict_idx.extend(list(new_nodes))
+            new_stable_dict_num.extend([1 for _ in range(len(new_nodes))])
+            self.stable_dic[key] = [new_stable_dict_idx, new_stable_dict_num]
+
+        else:
+            """是新的cluster
+            
+            """
+            new_key = len(list(self.stable_dic.keys())) + 1
+            self.stable_dic[new_key] = [new_idx, [1 for _ in range(len(new_idx))]]
         # for idx in stable_idx:
         #     if idx in self.stable_dic.keys():
         #         self.stable_dic[idx] += 1
@@ -120,6 +160,7 @@ class stable_dict:
         #         self.stable_dic[idx] = 1
     def reset(self):
         self.stable_dic = {}
+        self.stable_epoch = 0
     def get_stable_nodes(self):
         returnlist = []
         for i in self.stable_dic.keys():
@@ -137,7 +178,7 @@ def update_fold_dic(stable_dic: stable_dict, fold_dic: fold_dict, node_fea):
     # print(stable_dic.stable_dic)
     # print("*"*100)
     # print(fold_dic.fold_dict)
-    fold_path = '/root/autodl-tmp//7.26备份/fold2.txt'
+    fold_path = '/root/autodl-tmp/7.26备份/fold2.txt'
     with open(fold_path, 'a+') as f:
         f.write('stable_dic')
         f.write(str(stable_dic.stable_dic))
