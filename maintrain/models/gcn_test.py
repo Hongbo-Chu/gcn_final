@@ -287,7 +287,7 @@ class GraphConv(nn.Module):
             graph.apply_nodes(lambda nodes: {'u': (nodes.data['mean_u'] + nodes.data['mean_e'] + nodes.data['u'])})
 
             #然后更新边，通过concat操作先聚合，然后再mlp映射
-            # graph.apply_edges(edge_message_fn)
+            # graph.apply_edges(fn.u_add_e('u', 'e', 'e'))
             # print(f"更新完边的特征是{graph.edata['e'].size()}")
             # temp = self.mlp(graph.edata['e'])
             #通过计算点的相似度更新边

@@ -25,6 +25,7 @@ class fold_dict:
         self.fold_dict = {}
         self.fold_node_fea = {}
         self.num_stable = n # 稳定n轮再加进去
+        self.cluster_num_lastepoch = 0 # 上一个epoch的聚类个数 初始化为零
 
     def compute_fold_id(self,nodes_id, node_fea):
         """
@@ -94,6 +95,65 @@ class fold_dict:
         #     center_node, center_node_fea = self.compute_fold_id(node_tobe_fold, node_fea)
         #     self.fold_dict[center_node] = node_tobe_fold
         #     self.fold_node_fea[center_node] = center_node_fea
+    
+    def update_fold_dic(self, stable_dic, node_fea, clus_num):
+        """根据stble_dic来更新fold_dic
+            更新完成后stable_dic清零
+        """
+
+        # print("更新折叠字典")
+        old_dic = copy.deepcopy(self.fold_dic.fold_dict)
+        # print(stable_dic.stable_dic)
+        # print("*"*100)
+        # print(fold_dic.fold_dict)
+        fold_path = '/root/autodl-tmp/7.26备份/fold2.txt'
+        with open(fold_path, 'a+') as f:
+            f.write('stable_dic')
+            f.write(str(stable_dic.stable_dic))
+            f.write('\n')
+            f.write('folddic:')
+            f.write(str(self.fold_dic.fold_dict))
+            f.write('\n')
+            f.write('\n')
+        #更新内容：
+        # 保存不变
+        if clus_num == self.cluster_num_lastepoch:
+            for sta in stable_dic.stable_dic.keys():
+                #先选出稳定n轮的点
+                stable_nodes = []
+                stable_idx = [idx for (num, idx) in zip(sta[1], sta[0]) if num == self.fold_dic.num_stable]
+                #加到fold_dic中
+                self.fold_dic.add_element(stable_idx, node_fea)
+        #聚类种类变了
+        else:
+            # 聚类的种类变了就要重新更新stabledic
+
+        # for sta in stable_dic.stable_dic.keys():
+        #     #先选出稳定n轮的点
+        #     stable_nodes = []
+        #     stable_idx = [idx for (num, idx) in zip(sta[1], sta[0]) if num == self.fold_dic.num_stable]
+        #     #加到fold_dic中
+        #     self.fold_dic.add_element(stable_idx, node_fea)
+        #最后再更新聚类数量的记录
+        self.cluster_num_lastepoch = clus_num
+        new_dic = {}
+        for k_new, v_new in self.fold_dic.fold_dict.items():
+            if k_new in list(old_dic.keys()):
+                new_dic[k_new] = list(set(self.fold_dic.fold_dict[k_new]) - set(old_dic[k_new]))
+            else:
+                new_dic[k_new] = self.fold_dic.fold_dict[k_new]
+        with open(fold_path, "a+") as f:
+            for k, v in new_dic.items():
+                if v != []:
+                    # print(f"中心点{k}, 更新了{v}")
+                    f.write("中心点"+str(k) + "更新了" + str(v))
+                    f.write('\n')
+            f.write("*"*100)
+            f.write('\n')
+            f.write('\n')
+            f.write('\n')
+        stable_dic.reset()
+
 class stable_dict:
     """format
         {clus_label:[nodes]}
@@ -101,15 +161,31 @@ class stable_dict:
     def __init__(self) -> None:
         self.stable_dic = {}
         self.stable_epoch = 0 #用于记录稳定的轮数 初始化为零，每添加一次加一
+        self.cluster_num_lastepoch = 0 # 上一个epoch的聚类个数 初始化为零
+    def ensure_cluater_num(self, cluster_num):
+        """用于判断每轮的聚类数量是否发生了变化
+
+            如果不变，就接着之前的折叠字典更新
+            要是变了，就清空原来的折叠字典，重新更新
+            好处就是，如果聚类的数量一直在变的话(不稳定)，就不进行点的折叠。
+        """
+        if self.cluster_num_lastepoch == cluster_num:
+            pass
+        else:
+            self.reset_stable_dic()
+        self.cluster_num_lastepoch = cluster_num
     def add_stable_idx(self, fes_center, pys_center, clus_label):
         """维护一个stable_list，用于按照累别存放不同类中稳定的点，这些点将在最后被折叠
             如果连续超过n次(要包含最后一次)都出现的话就算稳定
             v2.1 添加对于稳定次数的记录
-                新数据结构：{clus_idx:[[idx, idx, idx,...], [num, num, num,...]]}
-                用于记录可能被折叠的点的稳定的次数
+            新数据结构：{clus_idx:[[idx, idx, idx,...], [num, num, num,...]]}
+            用于记录可能被折叠的点的稳定的次数
                 1. 旧的没有出现的点要被踢出去，
                 2. 重复出现的点加一
                 3. 新来的点置一
+            同时，已经在fold_dic当中的点就不会再添加到stable_dic里面
+            由于stable_dic每次的计算都是不受控制的，所以需要已经在fold_dic中的的点来判断
+            
         Args:
             fes_center (_type_): _description_
             pys_center (_type_): _description_
@@ -159,7 +235,7 @@ class stable_dict:
         #         self.stable_dic[idx] += 1
         #     else:
         #         self.stable_dic[idx] = 1
-    def reset(self):
+    def reset_stable_dic(self):
         self.stable_dic = {}
         self.stable_epoch = 0
     def get_stable_nodes(self):
@@ -170,45 +246,45 @@ class stable_dict:
         return returnlist
 
 
-def update_fold_dic(stable_dic: stable_dict, fold_dic: fold_dict, node_fea):
-    """根据stble_dic来更新fold_dic
-        更新完成后stable_dic清零
-    """
-    # print("更新折叠字典")
-    old_dic = copy.deepcopy(fold_dic.fold_dict)
-    # print(stable_dic.stable_dic)
-    # print("*"*100)
-    # print(fold_dic.fold_dict)
-    fold_path = '/root/autodl-tmp/7.26备份/fold2.txt'
-    with open(fold_path, 'a+') as f:
-        f.write('stable_dic')
-        f.write(str(stable_dic.stable_dic))
-        f.write('\n')
-        f.write('folddic:')
-        f.write(str(fold_dic.fold_dict))
-        f.write('\n')
-        f.write('\n')
-    #更新内容：
-    for sta in stable_dic.stable_dic.keys():
-        #先选出稳定n轮的点
-        stable_nodes = []
-        stable_idx = [idx for (num, idx) in zip(sta[1], sta[0]) if num == fold_dic.num_stable]
-        #加到folddic中
-        fold_dic.add_element(stable_idx, node_fea)
-    new_dic = {}
-    for k_new, v_new in fold_dic.fold_dict.items():
-        if k_new in list(old_dic.keys()):
-            new_dic[k_new] = list(set(fold_dic.fold_dict[k_new]) - set(old_dic[k_new]))
-        else:
-            new_dic[k_new] = fold_dic.fold_dict[k_new]
-    with open(fold_path, "a+") as f:
-        for k, v in new_dic.items():
-            if v != []:
-                # print(f"中心点{k}, 更新了{v}")
-                f.write("中心点"+str(k) + "更新了" + str(v))
-                f.write('\n')
-        f.write("*"*100)
-        f.write('\n')
-        f.write('\n')
-        f.write('\n')
-    stable_dic.reset()
+# def update_fold_dic(stable_dic: stable_dict, fold_dic: fold_dict, node_fea, clus_num):
+#     """根据stble_dic来更新fold_dic
+#         更新完成后stable_dic清零
+#     """
+#     # print("更新折叠字典")
+#     old_dic = copy.deepcopy(fold_dic.fold_dict)
+#     # print(stable_dic.stable_dic)
+#     # print("*"*100)
+#     # print(fold_dic.fold_dict)
+#     fold_path = '/root/autodl-tmp/7.26备份/fold2.txt'
+#     with open(fold_path, 'a+') as f:
+#         f.write('stable_dic')
+#         f.write(str(stable_dic.stable_dic))
+#         f.write('\n')
+#         f.write('folddic:')
+#         f.write(str(fold_dic.fold_dict))
+#         f.write('\n')
+#         f.write('\n')
+#     #更新内容：
+#     for sta in stable_dic.stable_dic.keys():
+#         #先选出稳定n轮的点
+#         stable_nodes = []
+#         stable_idx = [idx for (num, idx) in zip(sta[1], sta[0]) if num == fold_dic.num_stable]
+#         #加到fold_dic中
+#         fold_dic.add_element(stable_idx, node_fea)
+#     new_dic = {}
+#     for k_new, v_new in fold_dic.fold_dict.items():
+#         if k_new in list(old_dic.keys()):
+#             new_dic[k_new] = list(set(fold_dic.fold_dict[k_new]) - set(old_dic[k_new]))
+#         else:
+#             new_dic[k_new] = fold_dic.fold_dict[k_new]
+#     with open(fold_path, "a+") as f:
+#         for k, v in new_dic.items():
+#             if v != []:
+#                 # print(f"中心点{k}, 更新了{v}")
+#                 f.write("中心点"+str(k) + "更新了" + str(v))
+#                 f.write('\n')
+#         f.write("*"*100)
+#         f.write('\n')
+#         f.write('\n')
+#         f.write('\n')
+#     stable_dic.reset()
