@@ -285,8 +285,9 @@ def chooseNodeMask(node_fea, cluster_num, mask_rate:list, wsi, device, stable_di
     #取mask前先要判断是否重合
     pys_center, pys_edge = compute_pys_feature(wsi=wsi, n = 1)#计算处于物理中心和边缘的点
     # print(f"边缘的点和中心的点{len(pys_edge)} {len(pys_center)}")
+    #先确保聚类的数量不会变换
+    stable_dic.ensure_clus_num(cluster_num)
     #对每一类点分别取mask
-
     for idx, (feats, idxs) in enumerate(zip(node_fea_list, node_idx_list)):
         #feats的格式是[tensor,tessor....],先要拼成一个tensor
         feats = torch.cat(feats, dim = 0)

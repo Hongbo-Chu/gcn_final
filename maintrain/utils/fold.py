@@ -126,7 +126,9 @@ class fold_dict:
                 self.fold_dic.add_element(stable_idx, node_fea)
         #聚类种类变了
         else:
-            # 聚类的种类变了就要重新更新stabledic
+            # 在聚类种类发生变化的时候，stable_dic清空，fold在这轮肯定无法更新(因为需要等稳定几轮)，同时也一并清空
+            self.reset_fold_dic()
+
 
         # for sta in stable_dic.stable_dic.keys():
         #     #先选出稳定n轮的点
@@ -153,6 +155,9 @@ class fold_dict:
             f.write('\n')
             f.write('\n')
         stable_dic.reset()
+    def reset_fold_dic(self):
+        self.fold_dict = {}
+        self.fold_node_fea = {}
 
 class stable_dict:
     """format
@@ -160,9 +165,8 @@ class stable_dict:
     """
     def __init__(self) -> None:
         self.stable_dic = {}
-        self.stable_epoch = 0 #用于记录稳定的轮数 初始化为零，每添加一次加一
         self.cluster_num_lastepoch = 0 # 上一个epoch的聚类个数 初始化为零
-    def ensure_cluater_num(self, cluster_num):
+    def ensure_clus_num(self, cluster_num):
         """用于判断每轮的聚类数量是否发生了变化
 
             如果不变，就接着之前的折叠字典更新
@@ -237,7 +241,6 @@ class stable_dict:
         #         self.stable_dic[idx] = 1
     def reset_stable_dic(self):
         self.stable_dic = {}
-        self.stable_epoch = 0
     def get_stable_nodes(self):
         returnlist = []
         for i in self.stable_dic.keys():
