@@ -26,18 +26,22 @@ class fold_dict:
         self.fold_node_fea = {}
         self.num_stable = n # 稳定n轮再加进去
         self.cluster_num_lastepoch = 0 # 上一个epoch的聚类个数 初始化为零
+        self.display = []
 
     def compute_fold_id(self,nodes_id, node_fea):
         """
             根据要折叠的所有点的node_fea计算这些点折叠后应该落在哪个实体的点上面
+
+            todo只看特征维度
         """
-        node_fea_toupdate = []
+        node_fea_toupdate = []  # repeat
         for idx in nodes_id:
             node_fea_toupdate.append(node_fea[idx])
         node_fea_toupdate = torch.stack(node_fea_toupdate)
         clus_center = node_fea_toupdate.mean(dim=0)
         #然后计算所有的点和这个算出来的中心的相似度
-        cc = torch.stack([clus_center for _ in range(len(nodes_id))])
+        # cc = torch.stack([clus_center for _ in range(len(nodes_id))])
+        cc = clus_center.repeat(len(nodes_id), 1)
         dis = F.pairwise_distance(cc.unsqueeze(0), node_fea_toupdate.unsqueeze(0), p=2)
         dis_list = list(dis)
         max_idx = dis_list.index(max(dis_list))
@@ -100,30 +104,36 @@ class fold_dict:
         """根据stble_dic来更新fold_dic
             更新完成后stable_dic清零
         """
-
+        self.display.append(clus_num)
+        print(f"类别数：{self.display}")
         # print("更新折叠字典")
-        old_dic = copy.deepcopy(self.fold_dic.fold_dict)
+        old_dic = copy.deepcopy(self.fold_dict)
         # print(stable_dic.stable_dic)
         # print("*"*100)
         # print(fold_dic.fold_dict)
-        fold_path = '/root/autodl-tmp/7.26备份/fold2.txt'
+        fold_path = '/root/autodl-tmp/debuging/fold2.txt'
         with open(fold_path, 'a+') as f:
             f.write('stable_dic')
             f.write(str(stable_dic.stable_dic))
             f.write('\n')
             f.write('folddic:')
-            f.write(str(self.fold_dic.fold_dict))
+            f.write(str(self.fold_dict))
             f.write('\n')
             f.write('\n')
         #更新内容：
         # 保存不变
+        print(clus_num)
+        print(self.cluster_num_lastepoch)
+        print(f"folddic:{self.fold_dict}")
         if clus_num == self.cluster_num_lastepoch:
             for sta in stable_dic.stable_dic.keys():
                 #先选出稳定n轮的点
                 stable_nodes = []
-                stable_idx = [idx for (num, idx) in zip(sta[1], sta[0]) if num == self.fold_dic.num_stable]
+                stable_idx = [idx for (num, idx) in zip(stable_dic.stable_dic[sta][1], stable_dic.stable_dic[sta][0]) if num == self.num_stable]
                 #加到fold_dic中
-                self.fold_dic.add_element(stable_idx, node_fea)
+                if len(stable_idx) != 0:
+                    self.add_element(stable_idx, node_fea)
+
         #聚类种类变了
         else:
             # 在聚类种类发生变化的时候，stable_dic清空，fold在这轮肯定无法更新(因为需要等稳定几轮)，同时也一并清空
@@ -139,11 +149,11 @@ class fold_dict:
         #最后再更新聚类数量的记录
         self.cluster_num_lastepoch = clus_num
         new_dic = {}
-        for k_new, v_new in self.fold_dic.fold_dict.items():
+        for k_new, v_new in self.fold_dict.items():
             if k_new in list(old_dic.keys()):
-                new_dic[k_new] = list(set(self.fold_dic.fold_dict[k_new]) - set(old_dic[k_new]))
+                new_dic[k_new] = list(set(self.fold_dict[k_new]) - set(old_dic[k_new]))
             else:
-                new_dic[k_new] = self.fold_dic.fold_dict[k_new]
+                new_dic[k_new] = self.fold_dict[k_new]
         with open(fold_path, "a+") as f:
             for k, v in new_dic.items():
                 if v != []:
@@ -154,7 +164,7 @@ class fold_dict:
             f.write('\n')
             f.write('\n')
             f.write('\n')
-        stable_dic.reset()
+        stable_dic.reset_stable_dic()
     def reset_fold_dic(self):
         self.fold_dict = {}
         self.fold_node_fea = {}
@@ -205,8 +215,8 @@ class stable_dict:
         key = -1
         for k, v in self.stable_dic.items():
             intersection = set(v[0]) & set(new_idx) #计算交集
-            if intersection > count:
-                count = intersection
+            if len(list(intersection)) > count:
+                count = len(list(intersection))
                 key = k
         if key != -1:
             """不是新产生的cluster

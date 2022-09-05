@@ -194,7 +194,7 @@ class new_graph:
         return edge_fea.view(self.node_num, self.node_num), edge_pos.view(self.node_num, self.node_num)
             
     def init_graph(self, args):
-        debug_path = '/root/autodl-tmp/7.26备份/debug.txt'
+        debug_path = '/root/autodl-tmp/debuging/debug.txt'
         # e_fea = L2_dist(self.node_fea, self.node_fea)
         e_fea, e_pos = self.init_edge()
         # e_fea = self.edge_mlp(e_fea).view(self.node_num, self.node_num)#[n^2, 6] -> [n^2, 1] -> [n, n]
@@ -330,7 +330,7 @@ class new_graph:
                 v.append(outside_node)
                 ee.append(weight.unsqueeze(0))
 
-        temp_graph = dgl.graph((u, v))
+        temp_graph = dgl.graph((u, v), num_nodes=args.batch_size)
         self.graph = dgl.add_reverse_edges(temp_graph).to(self.device)
         all_uv = copy.deepcopy(u)
         all_uv.extend(v)
@@ -342,7 +342,7 @@ class new_graph:
         # print(f"建完的图{self.graph}")
         # print(f"edge_fea{ee.size()}") #TODO检查对称
         print(f"入度矩阵为{self.graph.in_degrees().size()}, 出度矩阵为{self.graph.out_degrees().size()}")
-        debug_path = '/root/autodl-tmp/7.26备份/debug.txt'
+        debug_path = '/root/autodl-tmp/debuging/debug.txt'
         with open(debug_path, 'a+') as f:
             f.write("src: \n")
             f.write(str(u))

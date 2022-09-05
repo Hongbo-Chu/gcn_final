@@ -9,7 +9,7 @@ from maintrain.construct_graph import new_graph
 from maintrain.utils.utils import chooseNodeMask, compute_pys_feature, fea2pos, chooseEdgeMask, compute_clus_center
 from maintrain.utils.fold import fold_dict as fd
 from maintrain.utils.fold import stable_dict as sd 
-from maintrain.utils.fold import update_fold_dic
+# from maintrain.utils.fold import update_fold_dic
 
 
 def save_log(save_folder, wsi_name, mini_patch, total, epoch, mask_nodes, fold_dict, labels, time, center_fea, edge_fea, center_pos, edge_pos, loss, big_epoch, acc=None, train=True, true_clus_num = None, clus_num = None):
@@ -117,7 +117,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
     backbone.train()
     gcn.train()
     wsi_name = wsi_dict[0][0].split("_")[0]
-    fold_dic = fd()#用于记录被折叠的点
+    fold_dic = fd(1)#用于记录被折叠的点
     stable_dic = sd()#用于记录稳定的点
     for epoch in range(args.epoch_per_wsi):
         start = time()
@@ -129,17 +129,13 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         else:
             optimizer = unfreeze(backbone, gcn, graph_mlp, args)
 
-        debug_path = '/root/autodl-tmp/7.26备份/debug.txt'
+        debug_path = '/root/autodl-tmp/debuging/debug.txt'
         with open(debug_path, 'a+') as f:
             f.write("minipatch" + str(mini_patch) + "epoch" + str(epoch) + '\n')
 
         #training
         node_fea = backbone(input_img)
         node_fea_detach = node_fea.clone().detach()#从计算图中剥离
-        update_fold_dic(stable_dic, fold_dic, node_fea_detach)
-         #先将折叠中心的node_fea变更
-        for k in fold_dic.fold_dict.keys():
-            node_fea[k] = fold_dic.fold_node_fea[k]
 
         # node_fea_detach = node_fea_detach.to("cpu")
         g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, args.edge_enhance, graph_mlp, args.device1).init_graph(args)
@@ -147,6 +143,11 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         
         
         clu_label, clus_num = Cluster(node_fea=node_fea_detach.cpu(), device=args.device1, method=args.cluster_method).predict1(num_clus=2)
+        fold_dic.update_fold_dic(stable_dic, node_fea_detach, clus_num)
+         #先将折叠中心的node_fea变更
+        for k in fold_dic.fold_dict.keys():
+            node_fea[k] = fold_dic.fold_node_fea[k]
+        
         for i in range(len(wsi_dict)):
             wsi_dict[i].append(clu_label[i])
         mask_rates = [args.mask_rate_high, args.mask_rate_mid, args.mask_rate_low]#各个被mask的比例

@@ -256,14 +256,14 @@ class GraphConv(nn.Module):
 
 
     def forward(self, graph, node_fea, edge_fea):
-        print("gcov forward")
+        # print("gcov forward")
         with graph.local_scope():
             feat_src, feat_dst = expand_as_pair(node_fea, graph)#用于支持二分图 其实feat_src 就是 node_feadgl 
             degs = graph.out_degrees().float().clamp(min=1)#计算节点的出度矩阵
             
 
 
-            print(len(degs))
+            # print(len(degs))
             norm = torch.pow(degs, -0.5) #计算C_ij,归一化用
             shp = norm.shape + (1,) * (feat_src.dim() - 1)#resahpe
             norm = torch.reshape(norm, shp)
@@ -301,13 +301,13 @@ class GraphConv(nn.Module):
             temp = edge_fea_temp[:half_node_num] + edge_fea_temp[-half_node_num:]
             temp = torch.cat([temp, temp], dim = 0)
             # temp = (torch.cat([edge_fea_temp[:half_node_num], edge_fea_temp[:half_node_num]]) + torch.cat([edge_fea_temp[half_node_num:], edge_fea_temp[half_node_num:]])) / 2
-            print(temp.size())
-            flag = 0
-            for i in range(half_node_num):
-                if temp[i] != temp[half_node_num + i]:
-                    flag = 1
-            if flag ==0:
-                print("是的对称的")
+            # print(temp.size())
+            # flag = 0
+            # for i in range(half_node_num):
+            #     if temp[i] != temp[half_node_num + i]:
+            #         flag = 1
+            # if flag ==0:
+            #     print("是的对称的")
             #然后片段阈值
             # print(f"统计阈值信息 均值：{temp.mean()} 最大值{temp.max()}，最小值{temp.min()}")
             # qq = sorted(temp)

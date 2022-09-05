@@ -20,7 +20,7 @@ from maintrain.models.loss import myloss as ml
 from maintrain.models.gcn import graph_mlp as g_mlp
 # from train_engine_mp2 import train_one_wsi
 from reduce_backbone import build_model
-from maintrain.utils.fold import update_fold_dic#test
+# from maintrain.utils.fold import update_fold_dic#test
 def save_log_eval(save_folder, big_epoch, wsi_name, acc, mini_patch, time, epoch, total):
     """
     一个wsi存一个md
