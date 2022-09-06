@@ -117,7 +117,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
     backbone.train()
     gcn.train()
     wsi_name = wsi_dict[0][0].split("_")[0]
-    fold_dic = fd(1)#用于记录被折叠的点
+    fold_dic = fd(3)#用于记录被折叠的点
     stable_dic = sd()#用于记录稳定的点
     for epoch in range(args.epoch_per_wsi):
         start = time()
@@ -151,7 +151,9 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         for i in range(len(wsi_dict)):
             wsi_dict[i].append(clu_label[i])
         mask_rates = [args.mask_rate_high, args.mask_rate_mid, args.mask_rate_low]#各个被mask的比例
+        print(f"检查检查{stable_dic.stable_dic.keys()}")
         mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, clus_num, mask_rates, wsi_dict, args.device1, stable_dic, clu_label)#TODO 检查数量
+        print(f"更新之后？？{stable_dic.stable_dic.keys()}")
         mask_edge_idx = chooseEdgeMask(u_v_pair, clu_label,sort_idx_rst, {"inter":args.edge_mask_inter, "inner":args.edge_mask_inner, "random": args.edge_mask_random} )#类内半径多一点
         node_fea[mask_idx] = 0
         edge_fea[mask_edge_idx] = 0
@@ -184,6 +186,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
             la.append(wsi_dict[i][3])
         true_label = dict(Counter(la))
         save_log(args.log_folder, wsi_name, mini_patch, total, epoch, mask_idx, fold_dic, clu_labe_new, train_time, fea_center, fea_edge, pys_center, pys_edge, loss, big_epoch, acc=None, train=True, true_clus_num=true_label, clus_num=clus_num)
+    
     true_label = []
     for i in range(len(wsi_dict)):
         true_label.append(int(wsi_dict[i][3]))

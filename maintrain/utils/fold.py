@@ -27,6 +27,7 @@ class fold_dict:
         self.num_stable = n # 稳定n轮再加进去
         self.cluster_num_lastepoch = 0 # 上一个epoch的聚类个数 初始化为零
         self.display = []
+        self.is_empty = True # 用于记录被清空后第一次添加元素
 
     def compute_fold_id(self,nodes_id, node_fea):
         """
@@ -62,44 +63,50 @@ class fold_dict:
             node (list): 被折叠的点的list
         """
         nn = new_node
-        #先判断是新产生一个折叠的点，还是像已有的点中添加信息
-        # re_fold_nodes = set(new_node) & set(self.fold_dict.keys())
-        #判断添加到哪个cluster
-        target_cluster = -1
-        target_num = 0
-        for k, v in self.fold_dict.items():
-            n_num = len(set(v) & set(new_node))
-            if n_num > target_cluster:
-                target_num = n_num
-                target_cluster = k
-        
-        #直接向该cluster中添加nodes
-        if target_num == 0:
-            #fold_dict空，或者这是一个新的cluster
+        #分两种情况
+            #1. fold_dic是空的，往里面添加新的元素
+            #2. fold_dic里面已经有折叠的cluster了，向cluster中添加元素
+        if self.is_empty:
+            #fold_dic是空的，直接添加元素
             center_node, center_node_fea = self.compute_fold_id(nn, node_fea)
             self.fold_dict[center_node] = nn
             self.fold_node_fea[center_node] = center_node_fea
         else:
-            # 不是新添加的
-            self.fold_dict[target_cluster].extend(nn)
-            #去重
-            self.fold_dict[target_cluster] = list(set(self.fold_dict[target_cluster]))
-        # if len(re_fold_nodes) == 0: #新产生
-        #     #计算折叠后的点的新id，从所有点中选出一个相似度最大的点
-        #     center_node, center_node_fea = self.compute_fold_id(nn, node_fea)
-        #     self.fold_dict[center_node] = nn
-        #     self.fold_node_fea[center_node] = center_node_fea
-        # else: #若果新折叠的点中包含已经被折叠的点
-        #     node_tobe_fold = []
-        #     for i in re_fold_nodes:
-        #         node_tobe_fold.extend(self.fold_dict[i])
-        #         # node_tobe_fold.extend([i])
-        #         ##同时旧的折叠字典中去除这些点
-        #         self.fold_dict.pop(i)
-        #     center_node, center_node_fea = self.compute_fold_id(node_tobe_fold, node_fea)
-        #     self.fold_dict[center_node] = node_tobe_fold
-        #     self.fold_node_fea[center_node] = center_node_fea
-    
+            #向已经有的fold_dic中添加，通过特征维度的距离来判断添加到哪一类当中
+            #分别计算每个点和特征中心的距离
+            #添加完成后再重新计算特征中心，看是否更新
+            #先统计一下中心点的特征向量
+            clus_center_fea = []
+            clus_center_fea_key = []
+            for k, v in self.fold_node_fea.items():
+                # 保证k,v一一对应
+                clus_center_fea_key.append(k)
+                clus_center_fea.append(v)
+            clus_center_fea = torch.cat(clus_center_fea, dim=0)
+            print(clus_center_fea.size())
+            for new_fold_node in nn:
+                try:
+                    dis_to_centers = F.pairwise_distance(torch.tensor(new_fold_node).repeat(len(self.fold_node_fea), 1).to("cuda:0"), clus_center_fea.unsqueeze(0), p=2)
+
+                except:
+                    print((torch.tensor(new_fold_node).repeat(len(self.fold_node_fea), 1)).size())
+                    print(torch.tensor(clus_center_fea).unsqueeze(0).size())
+                    assert False, 'eee'
+                #找出最近的距离的index
+                min_dis_idx = torch.argmin(dis_to_centers)
+                fold_cluser_to_append = clus_center_fea_key[min_dis_idx]
+                #将新的点添加到这个cluster里面
+                try:
+                    self.fold_dict[fold_cluser_to_append].append(new_fold_node)
+                except:
+                    print(self.fold_dict)
+                    print(fold_cluser_to_extend)
+                    print(new_fold_node)
+                    print("*"*100)
+                    print(self.fold_dict[fold_cluser_to_extend])
+                    print(type(self.fold_dict[fold_cluser_to_extend]))
+                    assert False, 'qqq'
+
     def update_fold_dic(self, stable_dic, node_fea, clus_num):
         """根据stble_dic来更新fold_dic
             更新完成后stable_dic清零
@@ -124,7 +131,6 @@ class fold_dict:
         # 保存不变
         print(clus_num)
         print(self.cluster_num_lastepoch)
-        print(f"folddic:{self.fold_dict}")
         if clus_num == self.cluster_num_lastepoch:
             for sta in stable_dic.stable_dic.keys():
                 #先选出稳定n轮的点
@@ -133,11 +139,13 @@ class fold_dict:
                 #加到fold_dic中
                 if len(stable_idx) != 0:
                     self.add_element(stable_idx, node_fea)
+            self.is_empty = False
 
         #聚类种类变了
         else:
             # 在聚类种类发生变化的时候，stable_dic清空，fold在这轮肯定无法更新(因为需要等稳定几轮)，同时也一并清空
             self.reset_fold_dic()
+        print(f"folddic:{self.fold_dict}")
 
 
         # for sta in stable_dic.stable_dic.keys():
@@ -164,10 +172,11 @@ class fold_dict:
             f.write('\n')
             f.write('\n')
             f.write('\n')
-        stable_dic.reset_stable_dic()
+        # stable_dic.reset_stable_dic()
     def reset_fold_dic(self):
         self.fold_dict = {}
         self.fold_node_fea = {}
+        self.is_empty =True
 
 class stable_dict:
     """format
@@ -186,6 +195,7 @@ class stable_dict:
         if self.cluster_num_lastepoch == cluster_num:
             pass
         else:
+            print("stable_dic has been reset")
             self.reset_stable_dic()
         self.cluster_num_lastepoch = cluster_num
     def add_stable_idx(self, fes_center, pys_center, clus_label):
@@ -213,8 +223,11 @@ class stable_dict:
         #同时也有可能产生一个新的聚类中心
         count = 0
         key = -1
+        print(f"cpcpcp{self.stable_dic}")
         for k, v in self.stable_dic.items():
             intersection = set(v[0]) & set(new_idx) #计算交集
+            # print(f"烫烫烫烫烫烫烫烫烫{intersection} ,{v[0]}")
+            # print(f"bbbbb{new_idx}")
             if len(list(intersection)) > count:
                 count = len(list(intersection))
                 key = k
