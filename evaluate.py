@@ -15,7 +15,6 @@ from maintrain.construct_graph import new_graph
 from maintrain.utils.utils import chooseNodeMask, compute_pys_feature, fea2pos, chooseEdgeMask
 from maintrain.models.gcn import GCN
 from maintrain.utils.fold import fold_dict as fd
-from maintrain.utils.fold import stable_dict as sd
 from maintrain.models.loss import myloss as ml
 from maintrain.models.gcn import graph_mlp as g_mlp
 # from train_engine_mp2 import train_one_wsi
