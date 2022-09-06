@@ -260,7 +260,7 @@ def split2clusters(node_fea, cluster_num, cluster_res, device, cluster_method = 
             print(f"啥超了啊{idx} {clu} {len(node_fea_list)}")
     return node_fea_list, node_idx_list
 
-def chooseNodeMask(node_fea, cluster_num, mask_rate:list, wsi, device, stable_dic, cluster_res, cluster_method = "K-means"):
+def chooseNodeMask(node_fea, cluster_num, mask_rate:list, wsi, device, fold_dic, cluster_res, cluster_method = "K-means"):
     """
     choose which nodes to mask of a certain cluster
     args:
@@ -286,7 +286,7 @@ def chooseNodeMask(node_fea, cluster_num, mask_rate:list, wsi, device, stable_di
     pys_center, pys_edge = compute_pys_feature(wsi=wsi, n = 1)#计算处于物理中心和边缘的点
     # print(f"边缘的点和中心的点{len(pys_edge)} {len(pys_center)}")
     #先确保聚类的数量不会变换
-    stable_dic.ensure_clus_num(cluster_num)
+    fold_dic.ensure_clus_num(cluster_num)
     #对每一类点分别取mask
     for idx, (feats, idxs) in enumerate(zip(node_fea_list, node_idx_list)):
         #feats的格式是[tensor,tessor....],先要拼成一个tensor
@@ -314,7 +314,7 @@ def chooseNodeMask(node_fea, cluster_num, mask_rate:list, wsi, device, stable_di
                 high.extend(sorted_idex[:mask_num])#概率高的点，但是不一定被加mask
                 #直接添加
                 # print(f"调试调试{len(pys_center)}")
-                stable_dic.add_stable_idx(nodes_tobe_mask, pys_center, idx)
+                fold_dic.add_stable_idx(nodes_tobe_mask, pys_center, idx)
             elif i == 2:#地相似度
                 #先判断是否重合
                 nodes_tobe_mask = sorted_idex[-mask_num:]

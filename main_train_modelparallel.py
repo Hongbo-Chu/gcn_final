@@ -83,7 +83,7 @@ def get_args_parser():
                 help='低相似度点mask的比例')
     parser.add_argument('--embeding_dim', type=int, default=768,
                 help='嵌入维度')
-    parser.add_argument('--epoch_per_wsi', type=int, default=10,
+    parser.add_argument('--epoch_per_wsi', type=int, default=50,
                 help='一个wsi整体训练几轮')
 
     parser.add_argument('--mask_weight', type=float, default=0.1,
@@ -204,8 +204,8 @@ def run():
         #合并patch,并验证
         #每个patch返回{center_fae:[true_label]}
         a = merge_mini_patch(res_dict_list, 0.9)
-        acc = evaluate(a)
-        print(f"\n acc= {acc}\n")
-        save_acc(args.save_folder_test, acc, epoch)
+        # acc = evaluate(a)
+        # print(f"\n acc= {acc}\n")
+        # save_acc(args.save_folder_test, acc, epoch)
 if __name__ == "__main__":
     run()
