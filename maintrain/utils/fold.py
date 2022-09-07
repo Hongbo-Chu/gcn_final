@@ -36,7 +36,7 @@ class fold_dict:
         self.display = []
         self.fold_dic_is_empty = True # 用于记录被清空后第一次添加元素
         #---------------------------原stable_dic------------------------------------------------------
-        self.stable_dic = {}
+        self.stable_dic = {} # node_tobe_fold
         self.cluster_num_lastepoch = 0 # 上一个epoch的聚类个数 初始化为零
     def compute_fold_id(self,nodes_id, node_fea):
         """
@@ -62,7 +62,7 @@ class fold_dict:
         """
         用于同步fold_dic和fold_list中的内容
         """
-        for k, v in self.fold_dict:
+        for k, v in self.fold_dict.items():
             self.fold_list.extend(v)
         self.fold_list = list(set(self.fold_list))
 
@@ -86,8 +86,8 @@ class fold_dict:
             center_node, center_node_fea = self.compute_fold_id(nn, node_fea)
             self.fold_dict[center_node] = nn
             self.fold_node_fea[center_node] = center_node_fea
-            print(f"真的更新了呢{self.fold_node_fea}")
-            assert False
+            # print(f"真的更新了呢{self.fold_node_fea}")
+            # assert False
         else:
             #向已经有的fold_dic中添加，通过特征维度的距离来判断添加到哪一类当中
             #分别计算每个点和特征中心的距离
@@ -291,7 +291,7 @@ class fold_dict:
                 returnlist.append(i)
         return returnlist
 
-# class stable_dict:
+# class stable_dict(fold_dict):
 #     """format
 #         {clus_label:[nodes]}
 #     """
