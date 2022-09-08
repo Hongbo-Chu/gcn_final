@@ -7,7 +7,7 @@ from collections import Counter
 from maintrain.utils.utils import Cluster
 from maintrain.construct_graph import new_graph
 from maintrain.utils.utils import chooseNodeMask, compute_pys_feature, fea2pos, chooseEdgeMask, compute_clus_center
-from maintrain.utils.fold import fold_dict as fd
+from maintrain.utils.fold import stable_dict as sd
 # from maintrain.utils.fold import update_fold_dic
 
 
@@ -116,7 +116,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
     backbone.train()
     gcn.train()
     wsi_name = wsi_dict[0][0].split("_")[0]
-    fold_dic = fd(3)#用于记录被折叠的点
+    stable_dic = sd(3)#用于记录被折叠的点
     for epoch in range(args.epoch_per_wsi):
         start = time()
         print(f"wsi:[{wsi_name}], epoch:[{epoch}]:")
@@ -136,21 +136,21 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         node_fea_detach = node_fea.clone().detach()#从计算图中剥离
 
         # node_fea_detach = node_fea_detach.to("cpu")
-        g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, args.edge_enhance, graph_mlp, args.device1).init_graph(args)
+        g, u_v_pair, edge_fea = new_graph(wsi_dict, stable_dic, node_fea_detach, args.edge_enhance, graph_mlp, args.device1).init_graph(args)
         
         
         
         clu_label, clus_num = Cluster(node_fea=node_fea_detach.cpu(), device=args.device1, method=args.cluster_method).predict1(num_clus=2)
-        fold_dic.update_fold_dic(node_fea_detach, clus_num)
+        stable_dic.update_fold_dic(node_fea_detach, clus_num)
          #先将折叠中心的node_fea变更
-        for k in fold_dic.fold_dict.keys():
-            node_fea[k] = fold_dic.fold_node_fea[k]
+        for k in stable_dic.fold_dict.keys():
+            node_fea[k] = stable_dic.fold_node_fea[k]
         
         for i in range(len(wsi_dict)):
             wsi_dict[i].append(clu_label[i])
         mask_rates = [args.mask_rate_high, args.mask_rate_mid, args.mask_rate_low]#各个被mask的比例
         # print(f"检查检查{fold_dic.stable_dic.keys()}")
-        mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, clus_num, mask_rates, wsi_dict, args.device1, fold_dic, clu_label)#TODO 检查数量
+        mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, clus_num, mask_rates, wsi_dict, args.device1, stable_dic, clu_label)#TODO 检查数量
         # print(f"更新之后？？{fold_dic.stable_dic.keys()}")
         mask_edge_idx = chooseEdgeMask(u_v_pair, clu_label,sort_idx_rst, {"inter":args.edge_mask_inter, "inner":args.edge_mask_inner, "random": args.edge_mask_random} )#类内半径多一点
         node_fea[mask_idx] = 0
@@ -183,7 +183,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         for i in range(len(wsi_dict)):
             la.append(wsi_dict[i][3])
         true_label = dict(Counter(la))
-        save_log(args.log_folder, wsi_name, mini_patch, total, epoch, mask_idx, fold_dic, clu_labe_new, train_time, fea_center, fea_edge, pys_center, pys_edge, loss, big_epoch, acc=None, train=True, true_clus_num=true_label, clus_num=clus_num)
+        save_log(args.log_folder, wsi_name, mini_patch, total, epoch, mask_idx, stable_dic, clu_labe_new, train_time, fea_center, fea_edge, pys_center, pys_edge, loss, big_epoch, acc=None, train=True, true_clus_num=true_label, clus_num=clus_num)
     
     true_label = []
     for i in range(len(wsi_dict)):

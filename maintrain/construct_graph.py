@@ -109,7 +109,7 @@ def L2_dist(x, y):
 
 
 class new_graph:
-    def __init__(self, wsi, fold_dict, node_fea, edge_enhance, graph_mlp, device) -> None:
+    def __init__(self, wsi, stable_dic, node_fea, edge_enhance, graph_mlp, device) -> None:
         """根据node_fea和读取的文件名建图
          Args:
             wsi (_type_): 格式：{idx: name, (x_t, y_t), (x, y)}
@@ -119,7 +119,7 @@ class new_graph:
         self.device = device
         self.edge_mlp = graph_mlp
         self.wsi_dic = wsi
-        self.fold_dict = fold_dict.fold_dict
+        self.fold_dict = stable_dic.fold_dict
         self.d = [] #javed 公式中的d
         for idx in range(len(wsi)):
             self.d.append(torch.tensor(list(wsi[idx][2])).float().unsqueeze(0))

@@ -1,17 +1,7 @@
 """
 用于折叠操作
-整个循环中的折叠操作分为两部分：对折叠的判断，和进行折叠。
-同时整个过程中，维护稳定表，和折叠树两个数据结构
-1. 折叠的判断：
-    要折叠的点是在更新过程中几轮都重合(稳定)的点，因为需要一张稳定表来记录一个点稳定的次数
-    若稳定的次数满足条件，则在n次循环之后进行折叠。
-2. 进行折叠：
-    折叠的操作分为更新node_fea矩阵，和维护折叠字典
-    a. 更新node_fea矩阵:
-        根据更新表将折叠完的点直接添加这原有的tensor后面，旧点的特征不做删除，因为要维护节点的idx不变。
-        只需要在建图的时候对要更新的点做出忽略，使其成为孤点即可，这样在消息传递中就不会更新，跟删除没有区别了就。
-    b. 维护折叠字典：#TODO 
-        每一类对应一颗折叠字典
+最新版，stable_dic包含fold_dic,所以stable_dic作为fold_dic的子类
+这样就可以保证stable_dic可以知道哪些点已经被折叠了
 
 """
 from enum import Flag
@@ -35,9 +25,7 @@ class fold_dict:
         self.cluster_num_lastepoch = 0 # 上一个epoch的聚类个数 初始化为零
         self.display = []
         self.fold_dic_is_empty = True # 用于记录被清空后第一次添加元素
-        #---------------------------原stable_dic------------------------------------------------------
-        self.stable_dic = {} # node_tobe_fold
-        self.cluster_num_lastepoch = 0 # 上一个epoch的聚类个数 初始化为零
+
     def compute_fold_id(self,nodes_id, node_fea):
         """
             根据要折叠的所有点的node_fea计算这些点折叠后应该落在哪个实体的点上面
@@ -205,6 +193,18 @@ class fold_dict:
         self.fold_dict = {}
         self.fold_node_fea = {}
         self.fold_dic_is_empty =True
+    
+
+class stable_dict(fold_dict):
+    """format
+        {clus_label:[nodes]}
+    """
+    def __init__(self, n) -> None:
+        # 稳定n轮再加进fold_dic
+        super(stable_dict, self).__init__(n)
+        #继承了fold_dic的所有属性和方法
+        self.stable_dic = {}
+        self.cluster_num_lastepoch = 0 # 上一个epoch的聚类个数 初始化为零
     def ensure_clus_num(self, cluster_num):
         """用于判断每轮的聚类数量是否发生了变化
 
@@ -290,99 +290,6 @@ class fold_dict:
             if self.stable_dic[i] >= self.threshold:
                 returnlist.append(i)
         return returnlist
-
-# class stable_dict(fold_dict):
-#     """format
-#         {clus_label:[nodes]}
-#     """
-#     def __init__(self) -> None:
-#         self.stable_dic = {}
-#         self.cluster_num_lastepoch = 0 # 上一个epoch的聚类个数 初始化为零
-#     def ensure_clus_num(self, cluster_num):
-#         """用于判断每轮的聚类数量是否发生了变化
-
-#             如果不变，就接着之前的折叠字典更新
-#             要是变了，就清空原来的折叠字典，重新更新
-#             好处就是，如果聚类的数量一直在变的话(不稳定)，就不进行点的折叠。
-#         """
-#         if self.cluster_num_lastepoch == cluster_num:
-#             pass
-#         else:
-#             print("stable_dic has been reset")
-#             self.reset_stable_dic()
-#         self.cluster_num_lastepoch = cluster_num
-#     def add_stable_idx(self, fes_center, pys_center, clus_label):
-#         """维护一个stable_list，用于按照累别存放不同类中稳定的点，这些点将在最后被折叠
-#             如果连续超过n次(要包含最后一次)都出现的话就算稳定
-#             v2.1 添加对于稳定次数的记录
-#             新数据结构：{clus_idx:[[idx, idx, idx,...], [num, num, num,...]]}
-#             用于记录可能被折叠的点的稳定的次数
-#                 1. 旧的没有出现的点要被踢出去，
-#                 2. 重复出现的点加一
-#                 3. 新来的点置一
-#             同时，已经在fold_dic当中的点就不会再添加到stable_dic里面
-#             由于stable_dic每次的计算都是不受控制的，所以需要已经在fold_dic中的的点来判断
-            
-#         Args:
-#             fes_center (_type_): _description_
-#             pys_center (_type_): _description_
-#         """
-        
-#         new_idx = list(set(fes_center) & set(pys_center))
-#         # print(set(fes_center))
-#         # print(set(pys_center))
-#         # print(f"要添加这些点{stable_idx}")
-#         #找出stable_dict中的同一类
-#         #同时也有可能产生一个新的聚类中心
-#         count = 0
-#         key = -1
-#         print(f"cpcpcp{self.stable_dic}")
-#         for k, v in self.stable_dic.items():
-#             intersection = set(v[0]) & set(new_idx) #计算交集
-#             # print(f"烫烫烫烫烫烫烫烫烫{intersection} ,{v[0]}")
-#             # print(f"bbbbb{new_idx}")
-#             if len(list(intersection)) > count:
-#                 count = len(list(intersection))
-#                 key = k
-#         if key != -1:
-#             """不是新产生的cluster
-#                 将intersection 和 new_node 拼接一下
-#                 要先吧intersection挑出来
-#             """
-#             new_stable_dict_idx = [] # 新的稳定字典
-#             new_stable_dict_num = [] # 稳定的次数
-#             new_stable_dict_idx.extend(list(set(self.stable_dic[key][0]) & set(new_idx)))
-#             new_nodes = set(new_idx) - set(self.stable_dic[key][0])
-#             stable_num = []
-#             for i in new_stable_dict_idx:
-#                 idx = self.stable_dic[key][0].index(i)
-#                 new_stable_dict_num.append(self.stable_dic[key][1][idx])
-#             #stable_num + 1 
-#             new_stable_dict_num = [i+1 for i in new_stable_dict_num]
-#             #将这轮新的点加进来
-#             new_stable_dict_idx.extend(list(new_nodes))
-#             new_stable_dict_num.extend([1 for _ in range(len(new_nodes))])
-#             self.stable_dic[key] = [new_stable_dict_idx, new_stable_dict_num]
-
-#         else:
-#             """是新的cluster
-            
-#             """
-#             new_key = len(list(self.stable_dic.keys())) + 1
-#             self.stable_dic[new_key] = [new_idx, [1 for _ in range(len(new_idx))]]
-#         # for idx in stable_idx:
-#         #     if idx in self.stable_dic.keys():
-#         #         self.stable_dic[idx] += 1
-#         #     else:
-#         #         self.stable_dic[idx] = 1
-#     def reset_stable_dic(self):
-#         self.stable_dic = {}
-#     def get_stable_nodes(self):
-#         returnlist = []
-#         for i in self.stable_dic.keys():
-#             if self.stable_dic[i] >= self.threshold:
-#                 returnlist.append(i)
-#         return returnlist
 
 
 # def update_fold_dic(stable_dic: stable_dict, fold_dic: fold_dict, node_fea, clus_num):
