@@ -54,7 +54,7 @@ class fold_dict:
             self.fold_list.extend(v)
         self.fold_list = list(set(self.fold_list))
 
-    def add_fold_element(self, new_node:list, node_fea):
+    def add_fold_element(self, new_node:list, node_fea, clus_num):
         """负责向字典中加与被折叠的点
             添加之前要判断一下有无已经是折叠后的新点，若是的话就要在新点下面添加,同时将旧的点放到新的里面，并置空
             ，若不是则创建新点,在创建图的时候只要判断新加的点是否为空就行了，为空的话就不用添加边了。
@@ -69,8 +69,9 @@ class fold_dict:
         #分两种情况
             #1. fold_dic是空的，往里面添加新的元素
             #2. fold_dic里面已经有折叠的cluster了，向cluster中添加元素
-        if self.fold_dic_is_empty:
-            #fold_dic是空的，直接添加元素
+        if self.fold_dic_is_empty or len(self.fold_dict.keys()) < clus_num:
+            #fold_dic中的类别没有到cluster的类别
+            #因为有可能所有的类不是同时稳定n轮的，有先后顺序
             center_node, center_node_fea = self.compute_fold_id(nn, node_fea)
             self.fold_dict[center_node] = nn
             self.fold_node_fea[center_node] = center_node_fea
@@ -153,7 +154,7 @@ class fold_dict:
                 #加到fold_dic中
                 if len(stable_idx) != 0:
                     flag = True
-                    self.add_fold_element(stable_idx, node_fea)
+                    self.add_fold_element(stable_idx, node_fea, clus_num)
             if flag:
                 self.fold_dic_is_empty = False
 
@@ -218,7 +219,7 @@ class stable_dict(fold_dict):
             print("stable_dic has been reset")
             self.reset_stable_dic()
         self.cluster_num_lastepoch = cluster_num
-    def add_stable_idx(self, fes_center, pys_center, clus_label):
+    def add_stable_idx(self, fes_center, pys_center, clus_label, cluster_num):
         """维护一个stable_list，用于按照累别存放不同类中稳定的点，这些点将在最后被折叠
             如果连续超过n次(要包含最后一次)都出现的话就算稳定
             v2.1 添加对于稳定次数的记录
@@ -273,8 +274,13 @@ class stable_dict(fold_dict):
 
         else:
             """是新的cluster
-            
+                todooooooooooooooooooooooooooooooooooo
             """
+            # # 有可能新的cluster与旧的没有任何交集，但是已经有两类了
+            # if len(self.stable_dic.keys()) == cluster_num:
+            #     # 根据平均距离来判断加到哪个cluster里面
+
+            # else:
             new_key = len(list(self.stable_dic.keys())) + 1
             self.stable_dic[new_key] = [new_idx, [1 for _ in range(len(new_idx))]]
         # for idx in stable_idx:

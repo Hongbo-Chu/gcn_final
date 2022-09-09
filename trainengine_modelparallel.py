@@ -112,12 +112,16 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
                     big_epoch,
                     args=None):
             
-   
     backbone.train()
     gcn.train()
     wsi_name = wsi_dict[0][0].split("_")[0]
     stable_dic = sd(3)#用于记录被折叠的点
     for epoch in range(args.epoch_per_wsi):
+
+        debug_path = '/root/autodl-tmp/debuging/fold2.txt'
+        with open(debug_path, 'a+') as f:
+            f.write('minipatch:' + str(mini_patch) + 'epoch:' + str(epoch))
+            f.write('\n')
         start = time()
         print(f"wsi:[{wsi_name}], epoch:[{epoch}]:")
         input_img = wsi_img.to(args.device0)
@@ -127,9 +131,6 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         else:
             optimizer = unfreeze(backbone, gcn, graph_mlp, args)
 
-        debug_path = '/root/autodl-tmp/debuging/debug.txt'
-        with open(debug_path, 'a+') as f:
-            f.write("minipatch" + str(mini_patch) + "epoch" + str(epoch) + '\n')
 
         #training
         node_fea = backbone(input_img)
@@ -151,7 +152,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         mask_rates = [args.mask_rate_high, args.mask_rate_mid, args.mask_rate_low]#各个被mask的比例
         # print(f"检查检查{fold_dic.stable_dic.keys()}")
         mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, clus_num, mask_rates, wsi_dict, args.device1, stable_dic, clu_label)#TODO 检查数量
-        # print(f"更新之后？？{fold_dic.stable_dic.keys()}")
+        # print(f"更新之后？？{stable_dic.stable_dic}")
         mask_edge_idx = chooseEdgeMask(u_v_pair, clu_label,sort_idx_rst, {"inter":args.edge_mask_inter, "inner":args.edge_mask_inner, "random": args.edge_mask_random} )#类内半径多一点
         node_fea[mask_idx] = 0
         edge_fea[mask_edge_idx] = 0
@@ -160,9 +161,9 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         edge_fea = edge_fea.to(args.device1)
         node_fea = node_fea.to(args.device1)
         predict_nodes = gcn(g, node_fea, edge_fea)
-        print("*"*100)
-        print('\n')
-        print(predict_nodes.size())
+        # print("*"*100)
+        # print('\n')
+        # print(predict_nodes.size())
         loss = criterion(predict_nodes, clu_label, cluster_center_fea, mask_idx, args.mask_weight, sort_idx_rst)
         # loss = criterion(predict_nodes, node_fea)
         print(f"epoch{[epoch]}, loss is:{[loss]}")

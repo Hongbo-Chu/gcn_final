@@ -308,16 +308,20 @@ def chooseNodeMask(node_fea, cluster_num, mask_rate:list, wsi, device, stable_di
             if i == 0:#高相似度
                 #先判断是否重合
                 nodes_tobe_mask = sorted_idex[:mask_num]
+                #然后要刨去被mask的点
+                nodes_tobe_mask = list(set(nodes_tobe_mask) - set(stable_dic.fold_list))
                 #通过差集求取
                 mask_nodes_set = set(nodes_tobe_mask) - set(pys_center)
                 mask_node_idx.extend(mask_nodes_set)
                 high.extend(sorted_idex[:mask_num])#概率高的点，但是不一定被加mask
                 #直接添加
                 # print(f"调试调试{len(pys_center)}")
-                stable_dic.add_stable_idx(nodes_tobe_mask, pys_center, idx)
-            elif i == 2:#地相似度
+                stable_dic.add_stable_idx(nodes_tobe_mask, pys_center, idx, cluster_num)
+            elif i == 2:#低相似度
                 #先判断是否重合
                 nodes_tobe_mask = sorted_idex[-mask_num:]
+                #然后要刨去被mask的点
+                nodes_tobe_mask = list(set(nodes_tobe_mask) - set(stable_dic.fold_list))
                 #通过差集求取
                 mask_nodes_set = set(nodes_tobe_mask) - set(pys_edge)
                 mask_node_idx.extend(mask_nodes_set)
@@ -325,7 +329,10 @@ def chooseNodeMask(node_fea, cluster_num, mask_rate:list, wsi, device, stable_di
             else: # 中相似度
                 mid = len(sorted_idex) // 2
                 mid_pre = mid - (mask_num) // 2
-                mask_node_idx.extend(sorted_idex[mid_pre:mid_pre + mask_num])
+                nodes_tobe_mask = sorted_idex[mid_pre:mid_pre + mask_num]
+                #然后要刨去被mask的点
+                nodes_tobe_mask = list(set(nodes_tobe_mask) - set(stable_dic.fold_list))
+                mask_node_idx.extend(nodes_tobe_mask)
     return mask_node_idx, high, low, sort_idx_rst, cluster_center_list
 
 def chooseEdgeMask(u_v_pair, clus_label, sort_idx_rst, rates:dict):

@@ -14,7 +14,7 @@ from maintrain.utils.utils import Cluster
 from maintrain.construct_graph import new_graph
 from maintrain.utils.utils import chooseNodeMask, compute_pys_feature, fea2pos, chooseEdgeMask
 from maintrain.models.gcn import GCN
-from maintrain.utils.fold import fold_dict as fd
+from maintrain.utils.fold import stable_dict as sd
 from maintrain.models.loss import myloss as ml
 from maintrain.models.gcn import graph_mlp as g_mlp
 # from train_engine_mp2 import train_one_wsi
@@ -219,8 +219,7 @@ def evaluate_wsi(backbone:torch.nn.Module, gcn: torch.nn.Module,
     backbone.eval()
     gcn.eval()
     print(f"start eval")
-    fold_dic = fd(args.batch_size)#用于记录被折叠的点
-    stable_dic = sd()#用于记录稳定的点
+    stable_dic = sd(3)#用于记录稳定的点
     wsi_name = wsi_dict[0][0].split("_")[0]
     start = time()
     # print(f"wsi:[{wsi_name}], epoch:[{epoch}]:")
@@ -230,33 +229,33 @@ def evaluate_wsi(backbone:torch.nn.Module, gcn: torch.nn.Module,
 
     #training
     for i in range(10):
-        node_fea = backbone(input_image)
-        update_fold_dic(stable_dic, fold_dic)
-            #先将折叠中心的node_fea添加
-        for k in fold_dic.fold_dict.keys():# 不存在空的折叠点
-            node_fea_k = torch.zeros(768).to("cuda:0")
-            for node in fold_dic.fold_dict[k]:
-                node_fea_k += node_fea[node]
-            node_fea_k = node_fea_k / len(fold_dic.fold_dict[k])
-            node_fea = torch.cat([node_fea, node_fea_k.unsqueeze(0)], dim = 0)
+        node_fea = backbone(input_img)
+        node_fea_detach = node_fea.clone().detach()#从计算图中剥离
 
-
-        node_fea_detach = node_fea.clone().detach()
-        g, u_v_pair, edge_fea = new_graph(wsi_dict, fold_dic, node_fea_detach, 1, "cuda:1").init_graph()
-        clu_label = Cluster(node_fea=node_fea_detach, cluster_num = clus_num, device='cuda:1').predict()
-        #向字典中添加聚类标签#TODO
+        # node_fea_detach = node_fea_detach.to("cpu")
+        g, u_v_pair, edge_fea = new_graph(wsi_dict, stable_dic, node_fea_detach, args.edge_enhance, graph_mlp, args.device1).init_graph(args)
+        
+        
+        
+        clu_label, clus_num = Cluster(node_fea=node_fea_detach.cpu(), device=args.device1, method=args.cluster_method).predict1(num_clus=2)
+        stable_dic.update_fold_dic(node_fea_detach, clus_num)
+         #先将折叠中心的node_fea变更
+        for k in stable_dic.fold_dict.keys():
+            node_fea[k] = stable_dic.fold_node_fea[k]
+        
         for i in range(len(wsi_dict)):
             wsi_dict[i].append(clu_label[i])
         mask_rates = [args.mask_rate_high, args.mask_rate_mid, args.mask_rate_low]#各个被mask的比例
-        mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, clus_num, mask_rates, wsi_dict, "cuda:1", stable_dic, clu_label)#TODO 检查数量
-        mask_edge_idx = chooseEdgeMask(u_v_pair, clu_label, sort_idx_rst, {"inter":0.1, "inner":0.1, "random":0.1} )
+        # print(f"检查检查{fold_dic.stable_dic.keys()}")
+        mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, clus_num, mask_rates, wsi_dict, args.device1, stable_dic, clu_label)#TODO 检查数量
+        # print(f"更新之后？？{stable_dic.stable_dic}")
+        mask_edge_idx = chooseEdgeMask(u_v_pair, clu_label,sort_idx_rst, {"inter":args.edge_mask_inter, "inner":args.edge_mask_inner, "random": args.edge_mask_random} )#类内半径多一点
         node_fea[mask_idx] = 0
         edge_fea[mask_edge_idx] = 0
         print(f"this epoch mask nodes:{len(mask_idx)}, mask edges: {len(mask_edge_idx)}")
-
-        g = g.to("cuda:1")
-        edge_fea = edge_fea.to("cuda:1")
-        node_fea = node_fea.to("cuda:1")
+        g = g.to(args.device1)
+        edge_fea = edge_fea.to(args.device1)
+        node_fea = node_fea.to(args.device1)
         predict_nodes = gcn(g, node_fea, edge_fea)
         pys_center, pys_edge = compute_pys_feature(wsi_dict, args.pos_choose) #计算物理特征
         fea2pos(fea_center, fea_edge, pys_center, pys_edge)#统计对齐信息并打印

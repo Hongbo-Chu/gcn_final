@@ -265,20 +265,20 @@ class new_graph:
 
             # f.write(str(threshold_e_np))
 
-        #判断是否对称
-        threshold_e_t = threshold_e.permute(1, 0)
-        judge = ((threshold_e == threshold_e_t).sum() == 90000)
-        if judge:
-            print("threshold_e是对称矩阵")
+        # #判断是否对称
+        # threshold_e_t = threshold_e.permute(1, 0)
+        # judge = ((threshold_e == threshold_e_t).sum() == 90000)
+        # if judge:
+        #     print("threshold_e是对称矩阵")
 
         
-        for i in range(len(threshold_e)):
-            count = 0
-            for j in range(len(threshold_e[i])):
-                if threshold_e[i][j] == 0:
-                    count += 1
-            if count == len(threshold_e[i]):
-                print(f"孤点3: {i}")
+        # for i in range(len(threshold_e)):
+        #     count = 0
+        #     for j in range(len(threshold_e[i])):
+        #         if threshold_e[i][j] == 0:
+        #             count += 1
+        #     if count == len(threshold_e[i]):
+        #         print(f"孤点3: {i}")
                     
         
         for i in tqdm(range(self.node_num)): #全连接图
