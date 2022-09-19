@@ -55,7 +55,7 @@ def get_args_parser():
     parser.add_argument('--num_gpu', type=int, default=4,
                         help='which gpu to use if any (default: 0)')
     # 
-    parser.add_argument('--backbone', type=str, default='vit',
+    parser.add_argument('--backbone', type=str, default='light_vit',
                     help='backbonetype')
     parser.add_argument('--cluster_method', type=str, default='spectral',
                     help='cluster_method')
