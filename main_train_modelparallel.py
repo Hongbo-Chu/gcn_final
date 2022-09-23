@@ -46,7 +46,7 @@ def get_args_parser():
                         help='which gpu to use if any (default: 0)')
     parser.add_argument('--device1', type=str, default="cuda:1",
                         help='which gpu to use if any (default: 0)')
-    parser.add_argument('--batch_size', type=int, default=1300,
+    parser.add_argument('--batch_size', type=int, default=300,
                         help='input batch size for training (default: 32)')
     parser.add_argument('--local_rank', default=-1, type=int,
                         help='node rank for distributed training')
@@ -190,7 +190,7 @@ def run():
         dict_load_path = os.path.join(args.wsi_folder, (args.training_wsi + '.npy'))
         wsi_img = torch.load(img_load_path)
         wsi_dict =  dict(np.load(dict_load_path, allow_pickle='TRUE').item())
-        dict_crop, img_crop, total = crop_wsi(wsi_dict, wsi_img, args.batch_size, 0.5)
+        dict_crop, img_crop, total = crop_wsi(wsi_dict, wsi_img, args.batch_size, 1)
         res_dict_list = []
         for idx, (wdict, wimg) in enumerate(zip(dict_crop, img_crop)):
             print(f"统计一下真实标签数量")

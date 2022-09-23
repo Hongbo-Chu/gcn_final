@@ -133,6 +133,10 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
 
 
         #training
+        # print(input_img.size())
+        # assert False, "fff"
+        # kk = torch.randn([64, 3, 224, 224]).to(args.device0)
+
         node_fea = backbone(input_img)
         node_fea_detach = node_fea.clone().detach()#从计算图中剥离
 
@@ -140,7 +144,8 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         g, u_v_pair, edge_fea = new_graph(wsi_dict, stable_dic, node_fea_detach, args.edge_enhance, graph_mlp, args.device1).init_graph(args)
         
         
-        
+        print(node_fea_detach.size())
+        # assert False, '111ws'
         clu_label, clus_num = Cluster(node_fea=node_fea_detach.cpu(), device=args.device1, method=args.cluster_method).predict1(num_clus=2)
         stable_dic.update_fold_dic(node_fea_detach, clus_num)
          #先将折叠中心的node_fea变更

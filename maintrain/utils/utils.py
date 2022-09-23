@@ -180,7 +180,7 @@ class Cluster:
         return pre_label, clus_num
     
     def spectral(self, x, num_clus, **kwargs):
-        Scluster = SpectralClustering(n_clusters=num_clus, affinity='nearest_neighbors',n_neighbors=10)# TODO 补充谱聚类参数
+        Scluster = SpectralClustering(n_clusters=num_clus, affinity='nearest_neighbors',n_neighbors=8)# TODO 补充谱聚类参数
         if type(x) == list:
             x = torch.stack(x)
         

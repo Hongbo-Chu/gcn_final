@@ -202,6 +202,7 @@ class LightViTAttention(nn.Module):
         h_group, w_group = H // ws, W // ws
 
         # partition to windows
+        print(q.size())
         q = q.view(B, num_heads, h_group, ws, w_group, ws, -1).permute(0, 2, 4, 1, 3, 5, 6).contiguous()
         q = q.view(-1, num_heads, ws*ws, C)
         k = k.view(B, num_heads, h_group, ws, w_group, ws, -1).permute(0, 2, 4, 1, 3, 5, 6).contiguous()
@@ -315,7 +316,7 @@ class ResidualMergePatch(nn.Module):
 class LightViT(nn.Module):
 
     def __init__(self, img_size=224, patch_size=8, in_chans=3, num_classes=1000, embed_dims=[64, 128, 256], num_layers=[2, 6, 6],
-                 num_heads=[2, 4, 8], mlp_ratios=[8, 4, 4], num_tokens=8, window_size=7, neck_dim=1280, qkv_bias=True,
+                 num_heads=[2, 4, 8], mlp_ratios=[8, 4, 4], num_tokens=8, window_size=7, neck_dim=768, qkv_bias=True,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0., embed_layer=ConvStem, norm_layer=None,
                  act_layer=None, weight_init=''):
         super().__init__()
@@ -361,6 +362,7 @@ class LightViT(nn.Module):
 
         self.head = nn.Linear(neck_dim, num_classes) if num_classes > 0 else nn.Identity()
         self.init_weights(weight_init)
+        self.aap = nn.AdaptiveAvgPool2d([224,224])
 
     def init_weights(self, mode=''):
         assert mode in ('jax', 'jax_nlhb', 'nlhb', '')
@@ -397,8 +399,9 @@ class LightViT(nn.Module):
         return x.mean(1)
 
     def forward(self, x):
+        # x = self.aap(x)
         x = self.forward_features(x)
-        x = self.head(x)
+        # x = self.head(x)
         return x
 
     def flops(self, input_shape=(3, 224, 224)):
@@ -491,7 +494,7 @@ def _init_vit_weights(module: nn.Module, name: str = '', head_bias: float = 0., 
 
 @register_model
 def lightvit_tiny(pretrained=False, **kwargs):
-    model_kwargs = dict(patch_size=8, embed_dims=[64, 128, 256], num_layers=[2, 6, 6],
+    model_kwargs = dict(patch_size=8, embed_dims=[64, 128, 256], num_layers=[2,6,6],
                         num_heads=[2, 4, 8, ], mlp_ratios=[8, 4, 4], num_tokens=8, **kwargs)
     model = LightViT(**model_kwargs)
     return model
@@ -511,3 +514,17 @@ def lightvit_base(pretrained=False, **kwargs):
                         num_heads=[4, 8, 16, ], mlp_ratios=[8, 4, 4], num_tokens=24, **kwargs)
     model = LightViT(**model_kwargs)
     return model
+
+if __name__ == '__main__':
+    # 
+    # total = sum([param.nelement() for param in model.parameters()])
+    # print(total)  
+
+    from torchsummary import summary
+
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = lightvit_tiny().to('cuda:0')
+
+    summary(model, input_size = (3, 224, 224), batch_size=300)
+
+

@@ -65,15 +65,32 @@ def buildvit():
 
 
 if __name__ =='__main__':
-    a = vit(1,pretrain=None)
-    b = a(torch.randn(1,3,224,224))
-    print(b.size())
-        #网络参数数量
-    def get_parameter_number(net):
-        total_num = sum(p.numel() for p in net.parameters())
-        trainable_num = sum(p.numel() for p in net.parameters() if p.requires_grad)
-        return {'Total': total_num, 'Trainable': trainable_num}
-    kk = get_parameter_number(a)
-    print(kk)
-    for name in a.state_dict():
-        print(name)
+    # a = vit(1,pretrain=None)
+    # b = a(torch.randn(1,3,224,224))
+    # print(b.size())
+    #     #网络参数数量
+    # def get_parameter_number(net):
+    #     total_num = sum(p.numel() for p in net.parameters())
+    #     trainable_num = sum(p.numel() for p in net.parameters() if p.requires_grad)
+    #     return {'Total': total_num, 'Trainable': trainable_num}
+    # kk = get_parameter_number(a)
+    # print(kk)
+    # for name in a.state_dict():
+    #     print(name)
+
+
+    # model = vit(1, pretrain=None)
+    # total = sum([param.nelement() for param in model.parameters()])
+    # print(total)
+
+
+    from torchsummary import summary
+
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = vit(1, pretrain=None).to('cuda:0')
+
+    summary(model, (3, 224, 224), batch_size=300)
+
+    # from torchstat import stat
+    # model =  vit(1, pretrain=None)
+    # stat(model, (3, 224, 224))
