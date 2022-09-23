@@ -399,7 +399,7 @@ class LightViT(nn.Module):
         return x.mean(1)
 
     def forward(self, x):
-        # x = self.aap(x)
+        x = self.aap(x)
         x = self.forward_features(x)
         # x = self.head(x)
         return x
@@ -494,8 +494,8 @@ def _init_vit_weights(module: nn.Module, name: str = '', head_bias: float = 0., 
 
 @register_model
 def lightvit_tiny(pretrained=False, **kwargs):
-    model_kwargs = dict(patch_size=8, embed_dims=[64, 128, 256], num_layers=[2,6,6],
-                        num_heads=[2, 4, 8, ], mlp_ratios=[8, 4, 4], num_tokens=8, **kwargs)
+    model_kwargs = dict(patch_size=8, embed_dims=[64], num_layers=[1],
+                        num_heads=[2], mlp_ratios=[8], num_tokens=8, **kwargs)
     model = LightViT(**model_kwargs)
     return model
 

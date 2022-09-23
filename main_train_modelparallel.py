@@ -46,7 +46,7 @@ def get_args_parser():
                         help='which gpu to use if any (default: 0)')
     parser.add_argument('--device1', type=str, default="cuda:1",
                         help='which gpu to use if any (default: 0)')
-    parser.add_argument('--batch_size', type=int, default=300,
+    parser.add_argument('--batch_size', type=int, default=100,
                         help='input batch size for training (default: 32)')
     parser.add_argument('--local_rank', default=-1, type=int,
                         help='node rank for distributed training')
@@ -55,7 +55,7 @@ def get_args_parser():
     parser.add_argument('--num_gpu', type=int, default=4,
                         help='which gpu to use if any (default: 0)')
     # 
-    parser.add_argument('--backbone', type=str, default='light_vit',
+    parser.add_argument('--backbone', type=str, default='vit',
                     help='backbonetype')
     parser.add_argument('--cluster_method', type=str, default='spectral',
                     help='cluster_method')

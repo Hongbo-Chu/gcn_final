@@ -448,7 +448,7 @@ class lite_vision_transformer(nn.Module):
 class lvt(lite_vision_transformer):
     def __init__(self, rasa_cfg=None, with_cls_head=True, **kwargs):
         super().__init__(
-            layers=[2,2,2,2],
+            layers=[1,1,0,0],
             patch_size=4,
             embed_dims=[64,64,160,256],
             num_heads=[2,2,5,8],
