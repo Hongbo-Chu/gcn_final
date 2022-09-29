@@ -139,7 +139,6 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
 
         node_fea = backbone(input_img)
         node_fea_detach = node_fea.clone().detach()#从计算图中剥离
-
         # node_fea_detach = node_fea_detach.to("cpu")
         g, u_v_pair, edge_fea = new_graph(wsi_dict, stable_dic, node_fea_detach, args.edge_enhance, graph_mlp, args.device1).init_graph(args)
         

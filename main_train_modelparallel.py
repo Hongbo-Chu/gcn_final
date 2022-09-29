@@ -11,6 +11,7 @@ import torch.optim as optim
 import torch.distributed as dist
 import torch.backends.cudnn as cudnn
 import os
+import math
 
 from maintrain.models.gcn_test import GCN
 from maintrain.models.gcn import graph_mlp as g_mlp
@@ -36,17 +37,17 @@ def seed_everything(seed: int):
 
 def get_args_parser():
     parser = argparse.ArgumentParser(description='PyTorch implementation')
-    parser.add_argument('--training_wsi', type=str, default="43",
+    parser.add_argument('--training_wsi', type=str, default="54",
                         help='which gpu to use if any (default: 0)')
 
-    parser.add_argument('--wsi_folder', type=str, default="/root/autodl-tmp/training_wsi",
+    parser.add_argument('--wsi_folder', type=str, default="/root/autodl-tmp/save_wsi",
                         help='which gpu to use if any (default: 0)')
 
     parser.add_argument('--device0', type=str, default="cuda:0",
                         help='which gpu to use if any (default: 0)')
     parser.add_argument('--device1', type=str, default="cuda:1",
                         help='which gpu to use if any (default: 0)')
-    parser.add_argument('--batch_size', type=int, default=100,
+    parser.add_argument('--batch_size', type=int, default=1300,
                         help='input batch size for training (default: 32)')
     parser.add_argument('--local_rank', default=-1, type=int,
                         help='node rank for distributed training')
@@ -119,44 +120,49 @@ def save_acc(path, acc, epoch):
     with open(save_path, 'a+') as f:
         f.write(str(epoch) + ": acc=" + str(acc) + '\n')
 
-def crop_wsi(wsi_dict, wsi_tensor, size, drop):
+def crop_wsi(wsi_dict, wsi_tensor, patch_size, drop):
     """
     根据将一个大的wsi分层若干个size大小的小wsi
     drop:当边角的块为中心块的%多少时，不会被丢掉
     """
-    droplast = True
-    wsi_num = len(wsi_dict)
-    if wsi_num < size:
-        return [wsi_dict], [wsi_tensor]
-    else:
-        crop_num = (wsi_num // size) + 1
-        last = wsi_num % size
-        if last/size > drop: #够大，不扔
-            droplast = False
-            print(f"lastsize:{last}")
-        wsi_name = wsi_dict[0][0].split("_")[0]
-        total = (crop_num - 1 if droplast else crop_num)
-        print(f"wsi[{wsi_name}],(含有{wsi_num}块patches)被拆分成[{total}]块")
-        wsi_buffer = []
-        tensor_buffer =[]
-        for i in range(crop_num):
-            wsi_temp = {}
-            tensor_temp = []
-            if i == crop_num - 1:
-                #是最后一组
-                if droplast == False:
-                    for idx, j in enumerate(range(i*size, wsi_num)):
-                        wsi_temp[idx] = wsi_dict[j]    
-                    tensor_temp = wsi_tensor[i*size:]
-                    wsi_buffer.append(wsi_temp)
-                    tensor_buffer.append(tensor_temp)
-            else:
-                for idx, j in enumerate(range(i*size, (1+i)*size)):
-                    wsi_temp[idx] = wsi_dict[j]
-                tensor_temp = wsi_tensor[i*size: (i+1)*size]
-                wsi_buffer.append(wsi_temp)
-                tensor_buffer.append(tensor_temp)
-        return wsi_buffer, tensor_buffer, total
+    #先找出原wsi x, y 的最大值
+    x_max = 0
+    y_max = 0
+    print(type(wsi_dict))
+    for idx, patch in wsi_dict.items():
+        x, y = patch[2]
+        if x > x_max:
+            x_max = x
+        if y > y_max:
+            y_max = y
+    patch_edge_size = int(math.sqrt(patch_size))
+    print(patch_edge_size, x_max, y_max)
+    x_num = (x_max // patch_edge_size) + 1
+    y_num = (y_max // patch_edge_size) + 1
+    wsi_buffer = [([[]] * x_num) for i in range(y_num)]
+    tensor_buffer = [([[]] * x_num) for i in range(y_num)]
+    print(f"wsi,含有{len(wsi_dict)}块patches被拆分成[{x_num * y_num}]块")
+    for idx, patch in wsi_dict.items():
+        x_pos, y_pos = patch[2]
+        x = x_pos // patch_edge_size
+        y = y_pos // patch_edge_size
+
+        wsi_buffer[x][y].append(patch)
+        tensor_buffer[x][y].append(wsi_tensor[idx])
+    # 最后将二维的字典变成一维
+    wsi_list = []
+    tensor_list = []
+    for x_wsi, x_tensor in zip(wsi_buffer, tensor_buffer):
+        for wsi, ten in zip(x_wsi, x_tensor):
+            
+            wsi_list.append(wsi)
+            tensor_list.append(torch.stack(ten))
+            wsi_list.append(wsi)
+    return wsi_list, tensor_list, x_num * y_num
+    
+
+    
+
     
 
 

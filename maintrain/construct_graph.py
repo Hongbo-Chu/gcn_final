@@ -330,7 +330,7 @@ class new_graph:
                 v.append(outside_node)
                 ee.append(weight.unsqueeze(0))
 
-        temp_graph = dgl.graph((u, v), num_nodes=args.batch_size)
+        temp_graph = dgl.graph((u, v), num_nodes=len(self.node_fea))
         self.graph = dgl.add_reverse_edges(temp_graph).to(self.device)
         all_uv = copy.deepcopy(u)
         all_uv.extend(v)
