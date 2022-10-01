@@ -114,7 +114,8 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
             
     backbone.train()
     gcn.train()
-    wsi_name = wsi_dict[0][0].split("_")[0]
+    print(wsi_dict[0])
+    wsi_name = str(wsi_dict[0][0]).split("_")[0]
     stable_dic = sd(3)#用于记录被折叠的点
     for epoch in range(args.epoch_per_wsi):
 

@@ -12,9 +12,11 @@ import torch.distributed as dist
 import torch.backends.cudnn as cudnn
 import os
 import math
+from torch.utils.data import DataLoader
 
 from maintrain.models.gcn_test import GCN
 from maintrain.models.gcn import graph_mlp as g_mlp
+from maintrain.utils.datasets import wsi_dataset
 from trainengine_modelparallel import train_one_wsi
 from reduce_backbone import build_model
 from maintrain.models.loss import myloss
@@ -40,7 +42,10 @@ def get_args_parser():
     parser.add_argument('--training_wsi', type=str, default="54",
                         help='which gpu to use if any (default: 0)')
 
-    parser.add_argument('--wsi_folder', type=str, default="/root/autodl-tmp/save_wsi",
+    parser.add_argument('--wsi_folder', type=str, default="/root/autodl-tmp/wsis/wsi",
+                        help='which gpu to use if any (default: 0)')
+
+    parser.add_argument('--wsi_dict_path', type=str, default='/root/autodl-tmp/wsis/final_wsi.npy',
                         help='which gpu to use if any (default: 0)')
 
     parser.add_argument('--device0', type=str, default="cuda:0",
@@ -120,45 +125,45 @@ def save_acc(path, acc, epoch):
     with open(save_path, 'a+') as f:
         f.write(str(epoch) + ": acc=" + str(acc) + '\n')
 
-def crop_wsi(wsi_dict, wsi_tensor, patch_size, drop):
-    """
-    根据将一个大的wsi分层若干个size大小的小wsi
-    drop:当边角的块为中心块的%多少时，不会被丢掉
-    """
-    #先找出原wsi x, y 的最大值
-    x_max = 0
-    y_max = 0
-    print(type(wsi_dict))
-    for idx, patch in wsi_dict.items():
-        x, y = patch[2]
-        if x > x_max:
-            x_max = x
-        if y > y_max:
-            y_max = y
-    patch_edge_size = int(math.sqrt(patch_size))
-    print(patch_edge_size, x_max, y_max)
-    x_num = (x_max // patch_edge_size) + 1
-    y_num = (y_max // patch_edge_size) + 1
-    wsi_buffer = [([[]] * x_num) for i in range(y_num)]
-    tensor_buffer = [([[]] * x_num) for i in range(y_num)]
-    print(f"wsi,含有{len(wsi_dict)}块patches被拆分成[{x_num * y_num}]块")
-    for idx, patch in wsi_dict.items():
-        x_pos, y_pos = patch[2]
-        x = x_pos // patch_edge_size
-        y = y_pos // patch_edge_size
+# def crop_wsi(wsi_dict, wsi_tensor, patch_size, drop):
+#     """
+#     根据将一个大的wsi分层若干个size大小的小wsi
+#     drop:当边角的块为中心块的%多少时，不会被丢掉
+#     """
+#     #先找出原wsi x, y 的最大值
+#     x_max = 0
+#     y_max = 0
+#     print(type(wsi_dict))
+#     for idx, patch in wsi_dict.items():
+#         x, y = patch[2]
+#         if x > x_max:
+#             x_max = x
+#         if y > y_max:
+#             y_max = y
+#     patch_edge_size = int(math.sqrt(patch_size))
+#     print(patch_edge_size, x_max, y_max)
+#     x_num = (x_max // patch_edge_size) + 1
+#     y_num = (y_max // patch_edge_size) + 1
+#     wsi_buffer = [([[]] * x_num) for i in range(y_num)]
+#     tensor_buffer = [([[]] * x_num) for i in range(y_num)]
+#     print(f"wsi,含有{len(wsi_dict)}块patches被拆分成[{x_num * y_num}]块")
+#     for idx, patch in wsi_dict.items():
+#         x_pos, y_pos = patch[2]
+#         x = x_pos // patch_edge_size
+#         y = y_pos // patch_edge_size
 
-        wsi_buffer[x][y].append(patch)
-        tensor_buffer[x][y].append(wsi_tensor[idx])
-    # 最后将二维的字典变成一维
-    wsi_list = []
-    tensor_list = []
-    for x_wsi, x_tensor in zip(wsi_buffer, tensor_buffer):
-        for wsi, ten in zip(x_wsi, x_tensor):
+#         wsi_buffer[x][y].append(patch)
+#         tensor_buffer[x][y].append(wsi_tensor[idx])
+#     # 最后将二维的字典变成一维
+#     wsi_list = []
+#     tensor_list = []
+#     for x_wsi, x_tensor in zip(wsi_buffer, tensor_buffer):
+#         for wsi, ten in zip(x_wsi, x_tensor):
             
-            wsi_list.append(wsi)
-            tensor_list.append(torch.stack(ten))
-            wsi_list.append(wsi)
-    return wsi_list, tensor_list, x_num * y_num
+#             wsi_list.append(wsi)
+#             tensor_list.append(torch.stack(ten))
+#             wsi_list.append(wsi)
+#     return wsi_list, tensor_list, x_num * y_num
     
 
     
@@ -192,19 +197,26 @@ def run():
 #     backboneModel.load_state_dict(same_param)
     # print(f"load params:{same_param.keys()}")
     for epoch in range(200):
-        img_load_path = os.path.join(args.wsi_folder, (args.training_wsi+ '.pt'))
-        dict_load_path = os.path.join(args.wsi_folder, (args.training_wsi + '.npy'))
-        wsi_img = torch.load(img_load_path)
-        wsi_dict =  dict(np.load(dict_load_path, allow_pickle='TRUE').item())
-        dict_crop, img_crop, total = crop_wsi(wsi_dict, wsi_img, args.batch_size, 1)
-        res_dict_list = []
-        for idx, (wdict, wimg) in enumerate(zip(dict_crop, img_crop)):
+        # img_load_path = os.path.join(args.wsi_folder, (args.training_wsi+ '.pt'))
+        # dict_load_path = os.path.join(args.wsi_folder, (args.training_wsi + '.npy'))
+        # wsi_img = torch.load(img_load_path)
+        # wsi_dict =  dict(np.load(dict_load_path, allow_pickle='TRUE').item())
+        # dict_crop, img_crop, total = crop_wsi(wsi_dict, wsi_img, args.batch_size, 1)
+        # res_dict_list = []
+
+        my_dataset = wsi_dataset(args.batch_size, args)
+        wsi_loader = DataLoader(my_dataset, batch_size=1)
+
+        for idx, (wdict, wimg) in enumerate(wsi_loader):
+            #TODO 用collat_fn改一下size,现在wimg的大小是[1,n,c,h,w]
             print(f"统计一下真实标签数量")
             la = []
-            for i in range(len(wdict)):
-                la.append(wdict[i][3])
-            print(Counter(la))
-            clus_num = len(Counter(la))
+            wimg = wimg.squeeze(0)
+            # for i in range(len(wdict)):
+            #     la.append(wdict[i][3])
+            # print(Counter(la))
+            # clus_num = len(Counter(la))
+            total =100
             res_dict = train_one_wsi(backboneModel, graph_model, graph_mlp, criterion, wimg, wdict, idx, total, epoch, args)
             res_dict_list.append(res_dict)
         #合并patch,并验证
