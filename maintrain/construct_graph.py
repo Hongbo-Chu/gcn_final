@@ -158,8 +158,10 @@ class new_graph:
         #先建立{(x, y): idx}，用于根据位置检索邻居的idx
         pos_idx_dict = {}
         for i in range(len(self.wsi_dic)):
-            pos = self.wsi_dic[i][2]
-            pos_idx_dict[tuple(pos)] = i
+            # pos = self.wsi_dic[i][2]
+            # pos_idx_dict[tuple(pos)] = i
+            pos_x, pos_y = int(self.wsi_dic[i][2][0]), int(self.wsi_dic[i][2][1])
+            pos_idx_dict[(pos_x, pos_y)] = i
         for i in range(len(p_ij1)):
             #只保留近邻的值
             #先计算邻居的idx
