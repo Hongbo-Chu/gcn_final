@@ -48,7 +48,7 @@ class wsi_dataset(Dataset):
         print(patch_edge_size, x_max, y_max)
         x_num = (x_max // patch_edge_size) + 1
         y_num = (y_max // patch_edge_size) + 1
-        wsi_buffer = [([[]] * x_num) for i in range(y_num)]
+        wsi_buffer = [[[] for j in range(x_num)] for i in range(y_num)]
         print(f"wsi,含有{len(self.wsi_dict)}块patches被拆分成[{x_num * y_num}]块")
         for idx, patch in self.wsi_dict.items():
             x_pos, y_pos = patch[2]
@@ -66,6 +66,7 @@ class wsi_dataset(Dataset):
             for wsi in x_wsi:           
                 if wsi != []:
                     self.patch_list.append(wsi)
+                    print(len(wsi))
 
     def get_img(self, patch):
         """

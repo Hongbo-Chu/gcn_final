@@ -17,12 +17,12 @@ from torch.utils.data import DataLoader
 from maintrain.models.gcn_test import GCN
 from maintrain.models.gcn import graph_mlp as g_mlp
 from maintrain.utils.datasets import wsi_dataset
-from trainengine_modelparallel import train_one_wsi
+from trainengine_single import train_one_wsi
 from reduce_backbone import build_model
 from maintrain.models.loss import myloss
 from maintrain.utils.utils import merge_mini_patch, evaluate
 from evaluate import evaluate_wsi
-
+import models_mae
 def seed_everything(seed: int):
     import random, os
     import numpy as np
@@ -115,6 +115,26 @@ def get_args_parser():
             help='模型存储文件夹')
     parser.add_argument('--save_folder_train', type=str, default='/mnt/cpath2/lf/gcn_wsi/gcn_final-main/runs/save',
             help='模型存储文件夹')
+
+
+
+    # parser.add_argument('--model', default='mae_vit_base_patch16', type=str, metavar='MODEL')
+    parser.add_argument('--instance_temperature', default=0.5, type=int)
+    parser.add_argument('--cluster_temperature', default=1, type=int)
+    parser.add_argument('--num_class', default=9, type=int)
+    parser.add_argument('--representation_size', default=768, type=int)
+    parser.add_argument('--model', default='mae_vit_base_patch16', type=str, metavar='MODEL',
+                        help='Name of model to train')
+
+    parser.add_argument('--input_size', default=224, type=int,
+                        help='images input size')
+
+    parser.add_argument('--mask_ratio', default=0.75, type=float,
+                        help='Masking ratio (percentage of removed patches).')
+
+    parser.add_argument('--norm_pix_loss', action='store_true',
+                        help='Use (per-patch) normalized pixels as targets for computing loss')
+    parser.set_defaults(norm_pix_loss=False)
     return parser
 
 
@@ -185,16 +205,19 @@ def run():
     seed_everything(114514111)
     args = get_args_parser()
     args = args.parse_args()
-    backboneModel = build_model(args.backbone).to(args.device0)
+    # backboneModel = build_model(args.backbone).to(args.device0)
+    backboneModel = models_mae.__dict__['mae_vit_base_patch16'](norm_pix_loss=args.norm_pix_loss,
+                                            args=args)
+    backboneModel.to(args.device0)
     graph_mlp = g_mlp(in_dim=5, hid_dim=16, out_dim = 1).to(args.device1)
     graph_model = GCN(in_dim=args.embeding_dim, num_hidden=128, out_dim=args.embeding_dim, num_layers=6, dropout=0,activation="prelu", residual=True,norm=nn.LayerNorm).to(args.device1)
     criterion = myloss(args).to(args.device1)
-    path = '/mnt/cpath2/lf/gcn_wsi/gcn_final-main/runs/save/wsi438.pth'
+    path = '/mnt/cpath2/lf/mae_multi/output_pretrain/checkpoint-138.pth'
     checkpoint = torch.load(path)
     print('start load cheakpoint...')
-    backboneModel.load_state_dict(checkpoint['backbone'])
-    graph_model.load_state_dict(checkpoint['gcn'])
-    graph_mlp.load_state_dict(checkpoint['graph_mlp'])
+    backboneModel.load_state_dict(checkpoint['model'])
+    # graph_model.load_state_dict(checkpoint['gcn'])
+    # graph_mlp.load_state_dict(checkpoint['graph_mlp'])
     print("load over")
     #加载预训练参数
 #     path = '../mae-multi3/output_pretrain_256/checkpoint-85.pth'

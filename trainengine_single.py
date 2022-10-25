@@ -115,16 +115,13 @@ def freeze(backbone, graph_model, graph_mlp, args):
     # optimizer.Adam(filter(lambda p: p.requires_grad, backbone.parameters()), lr=args.lr)
     return optimizer.Adam(list(graph_model.parameters()) + list(graph_mlp.parameters()), lr=args.lr, weight_decay=args.decay)
 
-def unfreeze(backbone, graph_model, graph_mlp, args):
+def unfreeze(graph_model, graph_mlp, args):
     """解冻模型的参数
 
     Args:
         backbone (torch.nn.Module): _description_
     """
-    for child in backbone.children():
-        for param in child.parameters():
-            param.requires_grad = True
-    return optimizer.Adam(list(backbone.parameters()) + list(graph_model.parameters()) + list(graph_mlp.parameters()), lr=args.lr, weight_decay=args.decay)
+    return optimizer.Adam(list(graph_model.parameters()) + list(graph_mlp.parameters()), lr=args.lr, weight_decay=args.decay)
 
 
 
@@ -138,7 +135,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
                     big_epoch,
                     args=None):
             
-    backbone.train()
+    backbone.eval()
     gcn.train()
     print(wsi_dict[0])
     wsi_name = str(wsi_dict[0][0]).split("_")[0]
@@ -153,18 +150,30 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         print(f"wsi:[{wsi_name}], epoch:[{epoch}]:")
         input_img = wsi_img.to(args.device0)
 
-        if (epoch+1) % 3 == 0:
-            optimizer = freeze(backbone, gcn, graph_mlp, args)
-        else:
-            optimizer = unfreeze(backbone, gcn, graph_mlp, args)
+        # if (epoch+1) % 3 == 0:
+        #     optimizer = freeze(backbone, gcn, graph_mlp, args)
+        # else:
+        optimizer = unfreeze(gcn, graph_mlp, args)
 
 
         #training
         # print(input_img.size())
         # assert False, "fff"
         # kk = torch.randn([64, 3, 224, 224]).to(args.device0)
-
-        node_fea = backbone(input_img)
+        #分着来 
+        buffer = []
+        bs = input_img.size()[0]
+        single_step = 300
+        start = 0
+        for i in range(int(bs / single_step) + 1):
+            if start + single_step < bs:
+                _, node_fea, _ = backbone(input_img[start:start+single_step], input_img[start:start+single_step],input_img[start:start+single_step], 0.75)
+            else:
+                _, node_fea, _ = backbone(input_img[start:], input_img[start:],input_img[start:], 0.75)
+            start += single_step
+            buffer.extend(node_fea)
+        node_fea = torch.stack(buffer)
+    
         node_fea_detach = node_fea.clone().detach()#从计算图中剥离
         # node_fea_detach = node_fea_detach.to("cpu")
         g, u_v_pair, edge_fea = new_graph(wsi_dict, stable_dic, node_fea_detach, args.edge_enhance, graph_mlp, args.device1).init_graph(args)
