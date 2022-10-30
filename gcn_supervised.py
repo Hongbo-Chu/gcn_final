@@ -38,12 +38,15 @@ class myGCN(torch.nn.Module):
         self.conv2 = GraphConv(512, 256)
         self.conv3 = GraphConv(256, 128)
         self.conv4 = GraphConv(128, 64)
-        self.conv5 = GraphConv(32, num_classes)
+        self.conv5 = GraphConv(64, num_classes)
 
     def forward(self, g, in_feat):
         h = self.conv1(g, in_feat)
         h = F.relu(h)
         h = self.conv2(g, h)
+        h = self.conv3(g, h)
+        h = self.conv4(g, h)
+        h = self.conv5(g, h)
         return h
 
 
@@ -204,7 +207,8 @@ def train_one_wsi1(backbone: torch.nn.Module, gcn: torch.nn.Module,
                 if start + single_step < bs:
                     _, node_fea, _ = backbone(input_img[start:start+single_step], input_img[start:start+single_step],input_img[start:start+single_step], 0.75)
                 else:
-                    _, node_fea, _ = backbone(input_img[start:], input_img[start:],input_img[start:], 0.75)
+                    if input_img[start:].size()[0] != 0:
+                        _, node_fea, _ = backbone(input_img[start:], input_img[start:],input_img[start:], 0.75)
                 start += single_step
                 buffer.extend(node_fea)
             node_fea = torch.stack(buffer)
@@ -216,7 +220,7 @@ def train_one_wsi1(backbone: torch.nn.Module, gcn: torch.nn.Module,
         
         # print(node_fea_detach.size())
         # # assert False, '111ws'
-        # clu_label, clus_num = Cluster(node_fea=node_fea_detach.cpu(), device=args.device1, method=args.cluster_method).predict1(num_clus=2)
+        clu_label, clus_num = Cluster(node_fea=node_fea_detach.cpu(), device=args.device1, method=args.cluster_method).predict1(num_clus=2)
         # stable_dic.update_fold_dic(node_fea_detach, clus_num)
         #  #先将折叠中心的node_fea变更
         # for k in stable_dic.fold_dict.keys():
@@ -225,19 +229,21 @@ def train_one_wsi1(backbone: torch.nn.Module, gcn: torch.nn.Module,
         for i in range(len(wsi_dict)):
             # wsi_dict[i].append(clu_label[i])
             labels.append(int(wsi_dict[i][3]))
-        # mask_rates = [args.mask_rate_high, args.mask_rate_mid, args.mask_rate_low]#各个被mask的比例
-        # # print(f"检查检查{fold_dic.stable_dic.keys()}")
-        # mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, clus_num, mask_rates, wsi_dict, args.device1, stable_dic, clu_label)#TODO 检查数量
-        # # print(f"更新之后？？{stable_dic.stable_dic}")
-        # mask_edge_idx = chooseEdgeMask(u_v_pair, clu_label,sort_idx_rst, {"inter":args.edge_mask_inter, "inner":args.edge_mask_inner, "random": args.edge_mask_random} )#类内半径多一点
-        # node_fea[mask_idx] = 0
-        # edge_fea[mask_edge_idx] = 0
+        mask_rates = [args.mask_rate_high, args.mask_rate_mid, args.mask_rate_low]#各个被mask的比例
+        # print(f"检查检查{fold_dic.stable_dic.keys()}")
+        mask_idx, fea_center, fea_edge, sort_idx_rst, cluster_center_fea = chooseNodeMask(node_fea_detach, clus_num, mask_rates, wsi_dict, args.device1, stable_dic, clu_label)#TODO 检查数量
+        # print(f"更新之后？？{stable_dic.stable_dic}")
+        mask_edge_idx = chooseEdgeMask(u_v_pair, clu_label,sort_idx_rst, {"inter":args.edge_mask_inter, "inner":args.edge_mask_inner, "random": args.edge_mask_random} )#类内半径多一点
+        node_fea[mask_idx] = 0
+        edge_fea[mask_edge_idx] = 0
         # print(f"this epoch mask nodes:{len(mask_idx)}, mask edges: {len(mask_edge_idx)}")
 
         g = g.to(args.device1)
         # edge_fea = edge_fea.to(args.device1)
         node_fea = node_fea.to(args.device1)
         logits = gcn(g, node_fea)
+        print(logits.size())
+        print(logits[1])
         pred = logits.argmax(1)
         labels = torch.tensor(labels).to(args.device1)
         total_len = len(labels)
@@ -246,6 +252,8 @@ def train_one_wsi1(backbone: torch.nn.Module, gcn: torch.nn.Module,
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        print(f"看一下{pred[:20]}")
+        print(f"服了{labels[:20]}")
         train_acc = (pred[:train_num] == labels[:train_num]).float().mean()
         eval_acc = (pred[train_num + 1:] == labels[train_num + 1:]).float().mean()
         print(f"train_acc={train_acc}, train_loss={loss}, eval_acc = {eval_acc}")
@@ -300,7 +308,7 @@ def get_args_parser():
                         help='which gpu to use if any (default: 0)')
     parser.add_argument('--device1', type=str, default="cuda:5",
                         help='which gpu to use if any (default: 0)')
-    parser.add_argument('--batch_size', type=int, default=6000,
+    parser.add_argument('--batch_size', type=int, default=5000,
                         help='input batch size for training (default: 32)')
     parser.add_argument('--local_rank', default=-1, type=int,
                         help='node rank for distributed training')

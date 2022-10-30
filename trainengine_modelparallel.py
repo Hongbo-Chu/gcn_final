@@ -11,11 +11,19 @@ from maintrain.utils.utils import chooseNodeMask, compute_pys_feature, fea2pos, 
 from maintrain.utils.fold import stable_dict as sd
 from maintrain.utils.train_eval import evaluate
 from collections import Counter
+from sklearn import metrics
+from munkres import Munkres
 # from maintrain.utils.fold import update_fold_dic
 
 
 
-
+def evaluate(label, pred):
+    nmi = metrics.normalized_mutual_info_score(label, pred)
+    ari = metrics.adjusted_rand_score(label, pred)
+    f = metrics.fowlkes_mallows_score(label, pred)
+    # pred_adjusted = get_y_preds(label, pred, 9)
+    # acc = metrics.accuracy_score(pred_adjusted, label)
+    return nmi, ari, f
 
 
 def train_eval(pre, label):
@@ -30,11 +38,10 @@ def train_eval(pre, label):
         aa = dict(Counter(clu))
         print(aa)
         temp = sorted(dict(Counter(clu)).items(), key=lambda x: x[1], reverse=True)
-        true_num += temp[0][1]
-    acc = true_num / len(pre)
-    # _, _, _, acc = evaluate(label, pre)
-    print(f"acc:[{acc}]")
-    return acc
+        # true_num += temp[0][1]
+    nmi, ari, f = evaluate(label, pre)
+    print(f"nmi={nmi}, ari={ari}, f={f}")
+    return nmi, ari, f
 
 
 def save_log(save_folder, wsi_name, mini_patch, total, epoch, mask_nodes, fold_dict, labels, time, center_fea, edge_fea, center_pos, edge_pos, loss, big_epoch, acc=None, train=True, true_clus_num = None, clus_num = None):
@@ -175,8 +182,8 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         clu_label, clus_num = Cluster(node_fea=node_fea_detach.cpu(), device=args.device1, method=args.cluster_method).predict1(num_clus=2)
         stable_dic.update_fold_dic(node_fea_detach, clus_num)
          #先将折叠中心的node_fea变更
-        for k in stable_dic.fold_dict.keys():
-            node_fea[k] = stable_dic.fold_node_fea[k]
+        # for k in stable_dic.fold_dict.keys():
+        #     node_fea[k] = stable_dic.fold_node_fea[k]
         
         for i in range(len(wsi_dict)):
             wsi_dict[i].append(clu_label[i])
@@ -213,7 +220,7 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
         #统计一下真实标签的数量
         la = []
         for i in range(len(wsi_dict)):
-           la.append(wsi_dict[i][3])
+            la.append(wsi_dict[i][3])
         true_label =torch.cat(la)
         save_log(args.log_folder, wsi_name, mini_patch, total, epoch, mask_idx, stable_dic, clu_labe_new, train_time, fea_center, fea_edge, pys_center, pys_edge, loss, big_epoch, acc=None, train=True, true_clus_num=true_label, clus_num=clus_num)
         train_eval(pre=clu_labe_new, label=true_label)
@@ -224,16 +231,16 @@ def train_one_wsi(backbone: torch.nn.Module, gcn: torch.nn.Module,
     
     true_label = []
     for i in range(len(wsi_dict)):
-       true_label.append(int(wsi_dict[i][3]))
+        true_label.append(int(wsi_dict[i][3]))
     clus_centers = compute_clus_center(predict_nodes_detach, clu_labe_new)
     res_dict = {center:[] for center in clus_centers}
     for idx, t_label in enumerate(true_label):
         res_dict[clus_centers[clu_labe_new[idx]]].append(t_label)
 
-    # if epoch % 3 == 0:
-    state = {'backbone':backbone.state_dict(), 'gcn':gcn.state_dict(), 'graph_mlp':graph_mlp.state_dict(), 'epoch': epoch, }
-    torch.save(state, args.save_folder_train)
-    return res_dict
+    # # if epoch % 3 == 0:
+    # state = {'backbone':backbone.state_dict(), 'gcn':gcn.state_dict(), 'graph_mlp':graph_mlp.state_dict(), 'epoch': epoch, }
+    # torch.save(state, args.save_folder_train)
+    # return res_dict
     
 
 

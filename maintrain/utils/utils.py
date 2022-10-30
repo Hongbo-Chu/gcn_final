@@ -103,7 +103,8 @@ class Cluster:
         while(i_best != -1):
             i_best = -1
             i = 0
-            while(i < len(node_fea_clus)):# 挑选出最适合二分的那个cluster
+            while(i < len(node_fea_clus) and len(node_fea_clus[i]) > 10):# 挑选出最适合二分的那个cluster 
+                #大于10的原因是谱聚类 k邻近的默认值是10
                 _, idx_clus = self.bi_partition(node_fea_clus, label_clus, i, **kwargs)
                 #将[[],[],[],...]形式的label转为[]形式
                 pre_label = [-1] * len(self.node_fea)
@@ -180,10 +181,10 @@ class Cluster:
         return pre_label, clus_num
     
     def spectral(self, x, num_clus, **kwargs):
-        Scluster = SpectralClustering(n_clusters=num_clus, affinity='nearest_neighbors',n_neighbors=8)# TODO 补充谱聚类参数
+        Scluster = SpectralClustering(n_clusters=num_clus, affinity="nearest_neighbors")# TODO 补充谱聚类参数
         if type(x) == list:
             x = torch.stack(x)
-        
+        print(f"debuging{x.size()}")
         return  Scluster.fit_predict(x.numpy())# TODO 验证输入格式
     
     def  Affinity(self):
